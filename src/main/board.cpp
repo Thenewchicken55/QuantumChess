@@ -249,6 +249,34 @@ bool Board::canCastleKingSide(Pos kingPos, SquareColor color) {
     return true;
 }
 
+bool Board::isCheckmate(SquareColor color) {
+    if (!isInCheck(color)) return false;
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            if (pieces[i][j] == nullptr) continue;
+            if (getPieceColor(pieces[i][j]->getType()) != color) continue;
+            std::vector<Pos> moves;
+            getPiecesMoves({i, j}, moves);
+            if (!moves.empty()) return false;
+        }
+    }
+    return true;
+}
+
+bool Board::isStalemate(SquareColor color) {
+    if (isInCheck(color)) return false;
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            if (pieces[i][j] == nullptr) continue;
+            if (getPieceColor(pieces[i][j]->getType()) != color) continue;
+            std::vector<Pos> moves;
+            getPiecesMoves({i, j}, moves);
+            if (!moves.empty()) return false;
+        }
+    }
+    return true;
+}
+
 bool Board::canCastleQueenSide(Pos kingPos, SquareColor color) {
     int row = kingPos.row;
     // King must be in starting position

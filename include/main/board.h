@@ -61,6 +61,12 @@ public:
     // Castling checks
     bool canCastleKingSide(Pos kingPos, SquareColor color);
     bool canCastleQueenSide(Pos kingPos, SquareColor color);
+
+    // Check if the given color is in checkmate
+    bool isCheckmate(SquareColor color);
+
+    // Check if the given color is in stalemate
+    bool isStalemate(SquareColor color);
 };
 
 #endif

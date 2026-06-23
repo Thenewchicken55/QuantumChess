@@ -13,11 +13,13 @@
 #include <iostream>
 #include <random>
 #include <algorithm>
+#include <chrono>
 
 /*
     Initializer for window class
 */
-Window::Window(){
+Window::Window()
+    : rng(std::chrono::steady_clock::now().time_since_epoch().count()) {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(screenWidth, screenHeight, "Quantum Chess");
 
@@ -64,13 +66,21 @@ void Window::render(){
         highlightMovesSelected();
 
         std::string playerTurnString;
-        if (currentPlayer == White)
-            playerTurnString = "White's Turn";
-        else if (currentPlayer == Black)
-            playerTurnString = "Black's Turn";
-        DrawText(playerTurnString.c_str(), 20, 20, 40, BLACK);
+        if (gameOver) {
+            DrawText(gameOverMessage.c_str(), 20, 20, 40, DARKGRAY);
+            DrawText("Press R to restart", 20, 70, 30, DARKGRAY);
+        } else {
+            if (currentPlayer == White)
+                playerTurnString = "White's Turn";
+            else
+                playerTurnString = "Black's Turn";
+            DrawText(playerTurnString.c_str(), 20, 20, 40, BLACK);
 
-
+            SquareColor opponent = (currentPlayer == White) ? Black : White;
+            if (game.isInCheck(opponent)) {
+                DrawText("Check!", 20, 70, 30, RED);
+            }
+        }
 
     EndDrawing();
 }
@@ -100,7 +110,6 @@ void Window::highlightMovesSelected(){
     }
 }
 
-// @TODO implement poll event method
 /*
     poll events for
 */
@@ -114,10 +123,25 @@ void Window::pollEvents(){
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         handleLeftMouseDown();
     }
+    if (IsKeyPressed(KEY_R)) {
+        restartGame();
+    }
 
 }
 
+void Window::restartGame() {
+    game.resetBoard();
+    gameState = pickPieceFirst;
+    currentPlayer = White;
+    gameOver = false;
+    gameOverMessage = "";
+    validMovePositions.clear();
+    moves = {};
+}
+
 void Window::handleLeftMouseDown(){
+    if (gameOver) return;
+
     auto squarePicked = getSquare(GetMousePosition());
 
     switch (gameState)
@@ -157,17 +181,30 @@ void Window::handleLeftMouseDown(){
             gameState = pickPieceSecond;
             break;
         }
-        if (currentPlayer == White)
-            currentPlayer = Black;
-        else 
-            currentPlayer = White;
 
-        if ( std::rand() % 2 == 0 ){
+        std::uniform_int_distribution<int> dist(0, 1);
+        if (dist(rng) == 0) {
             game.movePiece(moves.m1);
-        }
-        else {
+        } else {
             game.movePiece(moves.m2);
         }
+
+        if (currentPlayer == White)
+            currentPlayer = Black;
+        else
+            currentPlayer = White;
+
+        // Check for game over
+        if (game.isCheckmate(currentPlayer)) {
+            std::string winner = (currentPlayer == White) ? "Black" : "White";
+            gameOverMessage = "Checkmate! " + winner + " wins!";
+            gameOver = true;
+        } else if (game.isStalemate(currentPlayer)) {
+            gameOverMessage = "Stalemate! It's a draw!";
+            gameOver = true;
+        }
+
+        validMovePositions.clear();
         break;
 
     default:
@@ -301,4 +338,3 @@ void Window::loadSprites(){
 void Window::updateBoard() {
     render();
 }
- 
