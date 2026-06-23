@@ -17,3 +17,7 @@ void Piece::setPosition(Pos newPos) {
     pos = newPos;
     hasMoved = true;
 }
+
+bool Piece::getHasMoved() const {
+    return hasMoved;
+}

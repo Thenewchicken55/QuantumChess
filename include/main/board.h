@@ -18,6 +18,8 @@ class Board{
 private:
     std::unique_ptr<Piece> pieces[8][8];
 
+    Pos enPassantTarget = {-1, -1};
+
     // returns a reference to the piece at the given position
     std::unique_ptr<Piece>& getPiece(Pos pos);
 
@@ -52,6 +54,13 @@ public:
 
     // Find the king position for the given color
     Pos findKing(SquareColor color);
+
+    // En passant target accessors
+    Pos getEnPassantTarget() const;
+
+    // Castling checks
+    bool canCastleKingSide(Pos kingPos, SquareColor color);
+    bool canCastleQueenSide(Pos kingPos, SquareColor color);
 };
 
 #endif

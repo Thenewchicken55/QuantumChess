@@ -35,6 +35,8 @@ public:
     virtual PieceID getType() const = 0;
 
     void setPosition(Pos newPos);
+
+    bool getHasMoved() const;
 };
 
 #endif

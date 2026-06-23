@@ -17,6 +17,13 @@ std::vector<Pos> King::getValidMoves(){
         if (board->isEmpty(newPos) || getPieceColor(board->getPieceID(newPos)) != color)
             validMoves.push_back(newPos);
     }
+
+    // Castling
+    if (board->canCastleKingSide(pos, color))
+        validMoves.push_back({pos.row, pos.column + 2});
+    if (board->canCastleQueenSide(pos, color))
+        validMoves.push_back({pos.row, pos.column - 2});
+
     return validMoves;
 }
 
