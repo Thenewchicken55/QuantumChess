@@ -159,6 +159,15 @@ void Board::getPiecesMoves(Pos piecePos, std::vector<Pos>& movesAvailable){
     std::vector<Pos> rawMoves = getRawPieceMoves(piecePos);
     movesAvailable.clear();
     SquareColor pieceColor = pieces[piecePos.row][piecePos.column]->getColor();
+    PieceID pieceType = pieces[piecePos.row][piecePos.column]->getType();
+
+    // Add castling moves for the king (not part of raw attack moves)
+    if (pieceType == WKing || pieceType == BKing) {
+        if (canCastleKingSide(piecePos, pieceColor))
+            rawMoves.push_back({piecePos.row, piecePos.column + 2});
+        if (canCastleQueenSide(piecePos, pieceColor))
+            rawMoves.push_back({piecePos.row, piecePos.column - 2});
+    }
 
     for (auto& endPos : rawMoves) {
         Move trialMove = {piecePos, endPos};
@@ -170,14 +179,46 @@ void Board::getPiecesMoves(Pos piecePos, std::vector<Pos>& movesAvailable){
 
 bool Board::isLegalMove(Move move) {
     SquareColor movingColor = pieces[move.start.row][move.start.column]->getColor();
+    PieceID movingType = pieces[move.start.row][move.start.column]->getType();
 
+    // Detect castling and track rook movement for simulation
+    bool isCastling = false;
+    int rookStartCol = -1, rookEndCol = -1;
+    if ((movingType == WKing || movingType == BKing) && abs(move.end.column - move.start.column) == 2) {
+        isCastling = true;
+        if (move.end.column == 6) {
+            rookStartCol = 7; rookEndCol = 5;
+        } else if (move.end.column == 2) {
+            rookStartCol = 0; rookEndCol = 3;
+        }
+    }
+
+    int row = move.start.row;
+
+    // Move king
     auto captured = std::move(pieces[move.end.row][move.end.column]);
     pieces[move.end.row][move.end.column] = std::move(pieces[move.start.row][move.start.column]);
     pieces[move.end.row][move.end.column]->setPosition(move.end);
     pieces[move.start.row][move.start.column] = nullptr;
 
+    // Move rook during castling simulation
+    std::unique_ptr<Piece> capturedRookSquare;
+    if (isCastling) {
+        capturedRookSquare = std::move(pieces[row][rookEndCol]);
+        pieces[row][rookEndCol] = std::move(pieces[row][rookStartCol]);
+        pieces[row][rookEndCol]->setPosition({row, rookEndCol});
+    }
+
     bool inCheck = isInCheck(movingColor);
 
+    // Undo rook
+    if (isCastling) {
+        pieces[row][rookStartCol] = std::move(pieces[row][rookEndCol]);
+        pieces[row][rookStartCol]->setPosition({row, rookStartCol});
+        pieces[row][rookEndCol] = std::move(capturedRookSquare);
+    }
+
+    // Undo king
     pieces[move.start.row][move.start.column] = std::move(pieces[move.end.row][move.end.column]);
     pieces[move.start.row][move.start.column]->setPosition(move.start);
     pieces[move.end.row][move.end.column] = std::move(captured);

@@ -39,6 +39,8 @@ private:
     bool gameOver = false;
     std::string gameOverMessage;
 
+    Move lastMove = {{-1,-1}, {-1,-1}};
+
     std::mt19937 rng;
 
     void loadSprites();
@@ -60,6 +62,8 @@ private:
     void highlightSquare(Pos pos, Color color = BLUE);
 
     void highlightMovesSelected();
+
+    void highlightCheckedKing();
 
     void restartGame();
 

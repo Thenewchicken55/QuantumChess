@@ -56,20 +56,27 @@ void Window::render(){
 
         DrawTextureV(board.texture, { 0.0F, 0.0F }, WHITE);
 
+        // Draw last move highlight
+        if (lastMove.start.row != -1) {
+            highlightSquare(lastMove.start, ColorAlpha(YELLOW, 0.3f));
+            highlightSquare(lastMove.end, ColorAlpha(YELLOW, 0.3f));
+        }
+
         auto pieces = game.getPieces();
         for (auto cur : pieces){
             drawPiece(cur.second, getSquarePosition(cur.first));
         }
 
-        // highlighting a square
+        // highlighting cursor square and valid move targets
         highlightSquare(getSquare(GetMousePosition()));
         highlightMovesSelected();
+        highlightCheckedKing();
 
-        std::string playerTurnString;
         if (gameOver) {
             DrawText(gameOverMessage.c_str(), 20, 20, 40, DARKGRAY);
             DrawText("Press R to restart", 20, 70, 30, DARKGRAY);
         } else {
+            std::string playerTurnString;
             if (currentPlayer == White)
                 playerTurnString = "White's Turn";
             else
@@ -83,6 +90,16 @@ void Window::render(){
         }
 
     EndDrawing();
+}
+
+void Window::highlightCheckedKing() {
+    SquareColor opponent = (currentPlayer == White) ? Black : White;
+    if (game.isInCheck(opponent)) {
+        Pos kingPos = game.findKing(opponent);
+        if (kingPos.row != -1) {
+            highlightSquare(kingPos, RED);
+        }
+    }
 }
 
 void Window::highlightMovesSelected(){
@@ -137,12 +154,14 @@ void Window::restartGame() {
     gameOverMessage = "";
     validMovePositions.clear();
     moves = {};
+    lastMove = {{-1,-1}, {-1,-1}};
 }
 
 void Window::handleLeftMouseDown(){
     if (gameOver) return;
 
     auto squarePicked = getSquare(GetMousePosition());
+    if (squarePicked.row == -1) return;
 
     switch (gameState)
     {
@@ -185,8 +204,10 @@ void Window::handleLeftMouseDown(){
         std::uniform_int_distribution<int> dist(0, 1);
         if (dist(rng) == 0) {
             game.movePiece(moves.m1);
+            lastMove = moves.m1;
         } else {
             game.movePiece(moves.m2);
+            lastMove = moves.m2;
         }
 
         if (currentPlayer == White)
