@@ -183,8 +183,9 @@ void Board::getPiecesMoves(Pos piecePos, std::vector<Pos>& movesAvailable){
 bool Board::isLegalMove(Move move) {
     SquareColor movingColor = pieces[move.start.row][move.start.column]->getColor();
     PieceID movingType = pieces[move.start.row][move.start.column]->getType();
+    int row = move.start.row;
 
-    // Detect castling and track rook movement for simulation
+    // Detect castling
     bool isCastling = false;
     int rookStartCol = -1, rookEndCol = -1;
     if ((movingType == WKing || movingType == BKing) && abs(move.end.column - move.start.column) == 2) {
@@ -196,13 +197,26 @@ bool Board::isLegalMove(Move move) {
         }
     }
 
-    int row = move.start.row;
+    // Detect en passant
+    bool isEnPassant = false;
+    Pos epCapturedPos = {-1, -1};
+    if ((movingType == WPawn || movingType == BPawn) &&
+        move.end.row == enPassantTarget.row && move.end.column == enPassantTarget.column) {
+        isEnPassant = true;
+        epCapturedPos = {move.start.row, move.end.column};
+    }
 
-    // Move king
+    // Move piece
     auto captured = std::move(pieces[move.end.row][move.end.column]);
     pieces[move.end.row][move.end.column] = std::move(pieces[move.start.row][move.start.column]);
     pieces[move.end.row][move.end.column]->setPosition(move.end);
     pieces[move.start.row][move.start.column] = nullptr;
+
+    // Remove en passant captured pawn in simulation
+    std::unique_ptr<Piece> savedEnPassantCapture;
+    if (isEnPassant) {
+        savedEnPassantCapture = std::move(pieces[epCapturedPos.row][epCapturedPos.column]);
+    }
 
     // Move rook during castling simulation
     std::unique_ptr<Piece> capturedRookSquare;
@@ -221,7 +235,12 @@ bool Board::isLegalMove(Move move) {
         pieces[row][rookEndCol] = std::move(capturedRookSquare);
     }
 
-    // Undo king
+    // Restore en passant captured pawn
+    if (isEnPassant) {
+        pieces[epCapturedPos.row][epCapturedPos.column] = std::move(savedEnPassantCapture);
+    }
+
+    // Undo piece move
     pieces[move.start.row][move.start.column] = std::move(pieces[move.end.row][move.end.column]);
     pieces[move.start.row][move.start.column]->setPosition(move.start);
     pieces[move.end.row][move.end.column] = std::move(captured);
