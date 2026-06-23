@@ -21,6 +21,9 @@ private:
     // returns a reference to the piece at the given position
     std::unique_ptr<Piece>& getPiece(Pos pos);
 
+    // returns raw valid moves from the piece (without legality filtering)
+    std::vector<Pos> getRawPieceMoves(Pos piecePos);
+
 public:
     Board();
 
@@ -37,6 +40,18 @@ public:
 
     // Checks if the square on board is empty
     bool isEmpty(Pos pos);
+
+    // Check if the given color's king is in check
+    bool isInCheck(SquareColor color);
+
+    // Check if the given square is attacked by any piece of byColor
+    bool isSquareAttacked(Pos square, SquareColor byColor);
+
+    // Check if making this move would leave the current player's king in check
+    bool isLegalMove(Move move);
+
+    // Find the king position for the given color
+    Pos findKing(SquareColor color);
 };
 
 #endif

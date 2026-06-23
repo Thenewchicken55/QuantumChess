@@ -14,7 +14,6 @@
 #include "knight.h"
 #include "queen.h"
 #include "king.h"
-#include "window.h"
 #include <optional>
 #include <functional>
 #include <stdexcept>
@@ -23,7 +22,7 @@ Board::Board(){
     resetBoard();
 }
 
-// Returns a list of pieces on the Board. Smove.endres position and type of each piece
+// Returns a list of pieces on the Board. Stores position and type of each piece
 std::vector<std::pair<Pos, PieceID>> Board::getPieces() {
     std::vector<std::pair<Pos, PieceID>> pieceList;
     for (int i = 0; i < 8; ++i){
@@ -96,6 +95,71 @@ bool Board::isEmpty(Pos pos) {
     return pieces[pos.row][pos.column] == nullptr;
 }
 
+std::vector<Pos> Board::getRawPieceMoves(Pos piecePos) {
+    return pieces[piecePos.row][piecePos.column]->getValidMoves();
+}
+
 void Board::getPiecesMoves(Pos piecePos, std::vector<Pos>& movesAvailable){
-    movesAvailable = pieces[piecePos.row][piecePos.column]->getValidMoves();
+    std::vector<Pos> rawMoves = getRawPieceMoves(piecePos);
+    movesAvailable.clear();
+    SquareColor pieceColor = pieces[piecePos.row][piecePos.column]->getColor();
+
+    for (auto& endPos : rawMoves) {
+        Move trialMove = {piecePos, endPos};
+        if (isLegalMove(trialMove)) {
+            movesAvailable.push_back(endPos);
+        }
+    }
+}
+
+bool Board::isLegalMove(Move move) {
+    SquareColor movingColor = pieces[move.start.row][move.start.column]->getColor();
+
+    auto captured = std::move(pieces[move.end.row][move.end.column]);
+    pieces[move.end.row][move.end.column] = std::move(pieces[move.start.row][move.start.column]);
+    pieces[move.end.row][move.end.column]->setPosition(move.end);
+    pieces[move.start.row][move.start.column] = nullptr;
+
+    bool inCheck = isInCheck(movingColor);
+
+    pieces[move.start.row][move.start.column] = std::move(pieces[move.end.row][move.end.column]);
+    pieces[move.start.row][move.start.column]->setPosition(move.start);
+    pieces[move.end.row][move.end.column] = std::move(captured);
+
+    return !inCheck;
+}
+
+Pos Board::findKing(SquareColor color) {
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            if (pieces[i][j] != nullptr && pieces[i][j]->getType() == (color == White ? WKing : BKing)) {
+                return {i, j};
+            }
+        }
+    }
+    return {-1, -1};
+}
+
+bool Board::isSquareAttacked(Pos square, SquareColor byColor) {
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            if (pieces[i][j] == nullptr) continue;
+            if (getPieceColor(pieces[i][j]->getType()) != byColor) continue;
+
+            std::vector<Pos> rawMoves = pieces[i][j]->getValidMoves();
+            for (auto& move : rawMoves) {
+                if (move.row == square.row && move.column == square.column) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+bool Board::isInCheck(SquareColor color) {
+    Pos kingPos = findKing(color);
+    if (kingPos.row == -1) return false;
+    SquareColor enemyColor = (color == White) ? Black : White;
+    return isSquareAttacked(kingPos, enemyColor);
 }
