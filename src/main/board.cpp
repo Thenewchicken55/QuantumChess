@@ -141,13 +141,16 @@ void Board::movePiece(Move move) {
 }
 
 PieceID Board::getPieceID(Pos square){
+    if (square.row < 0 || square.row >= 8 || square.column < 0 || square.column >= 8)
+        return InvalidPiece;
     if (pieces[square.row][square.column] == nullptr)
         return InvalidPiece;
-    else
-        return pieces[square.row][square.column]->getType();
+    return pieces[square.row][square.column]->getType();
 }
 
 bool Board::isEmpty(Pos pos) {
+    if (pos.row < 0 || pos.row >= 8 || pos.column < 0 || pos.column >= 8)
+        return false;
     return pieces[pos.row][pos.column] == nullptr;
 }
 

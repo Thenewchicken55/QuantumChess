@@ -25,7 +25,7 @@ Window::Window()
 
     SetTargetFPS(30);
 
-    createBoardTexture();
+    updateBoard();
     loadSprites();
 }
 
@@ -33,15 +33,23 @@ Window::Window()
     Destructor for Window class
 */
 Window::~Window(){
-    if(board.texture.id != 0)
-        UnloadRenderTexture(board);
-
     for (auto& cur : sprites){
         if (cur.id != 0)
             UnloadTexture(cur);
     }
 
     CloseWindow();
+}
+
+void Window::drawBoard() {
+    float squareSize = boardWidth / 8;
+    for (int col = 0; col < 8; ++col) {
+        for (int row = 0; row < 8; ++row) {
+            Vector2 pos = {boardStart.x + col * squareSize, boardStart.y + row * squareSize};
+            Color shade = ((row + col) % 2 == 0) ? Color{181, 136, 99, 255} : Color{240, 217, 181, 255};
+            DrawRectangleV(pos, {squareSize, squareSize}, shade);
+        }
+    }
 }
 
 /*
@@ -52,12 +60,12 @@ void Window::render(){
 
         ClearBackground(RAYWHITE);
 
-        DrawTextureV(board.texture, { 0.0F, 0.0F }, WHITE);
+        drawBoard();
 
         // Draw last move highlight
         if (lastMove.start.row != -1) {
-            highlightSquare(lastMove.start, ColorAlpha(YELLOW, 0.3f));
-            highlightSquare(lastMove.end, ColorAlpha(YELLOW, 0.3f));
+            highlightSquare(lastMove.start, Fade(YELLOW, 0.3f));
+            highlightSquare(lastMove.end, Fade(YELLOW, 0.3f));
         }
 
         auto pieces = game.getPieces();
@@ -141,7 +149,6 @@ void Window::pollEvents(){
     if (IsKeyPressed(KEY_R)) {
         restartGame();
     }
-
 }
 
 void Window::restartGame() {
@@ -255,27 +262,27 @@ void Window::run(){
     @return index of cell clicked
 */
 Pos Window::getSquare(Vector2 cursorPosition){
-    int squareSize = boardWidth/8;
-
     // Check if cursor is within the board
-    if (cursorPosition.x < boardStart.x || cursorPosition.x > boardEnd.x || cursorPosition.y < boardStart.y || cursorPosition.y > boardEnd.y){
+    if (cursorPosition.x < boardStart.x || cursorPosition.x > boardEnd.x ||
+        cursorPosition.y < boardStart.y || cursorPosition.y > boardEnd.y){
         return {-1, -1};
     }
 
-    // Get the square
-    int cursorSquareY = (cursorPosition.y - boardStart.y) / squareSize;
-    int cursorSquareX = (cursorPosition.x - boardStart.x) / squareSize;
+    float squareSize = boardWidth / 8;
+    int column = (cursorPosition.x - boardStart.x) / squareSize;
+    int row = (cursorPosition.y - boardStart.y) / squareSize;
 
-    return {cursorSquareY, cursorSquareX};
+    return {row, column};
 }
 
 /*
     get the position in the window of a square by index
 */
 Vector2 Window::getSquarePosition(Pos square){
+    float squareSize = boardWidth / 8;
     return {
-        ( square.column) * boardWidth/8 + boardStart.x,
-        ( square.row) * boardWidth/8 + boardStart.y
+        boardStart.x + square.column * squareSize,
+        boardStart.y + square.row * squareSize
     };
 }
 
@@ -285,37 +292,19 @@ Vector2 Window::getSquarePosition(Pos square){
 void Window::resizedWindow(){
     screenWidth = GetScreenWidth();
     screenHeight = GetScreenHeight();
-    createBoardTexture();
+    updateBoard();
 }
 
 /*
-    Creates board texture
+    Updates board layout based on current window dimensions
 */
-void Window::createBoardTexture(){
-    if (board.texture.id != 0)
-        UnloadRenderTexture(board);
-
+void Window::updateBoard() {
     int w = GetScreenWidth();
     int h = GetScreenHeight();
-    board = LoadRenderTexture(w, h);
 
     boardWidth = ((w < h) ? w : h) * 0.95;
     boardStart = {(float)(w - boardWidth) / 2, (float)(h - boardWidth) / 2};
     boardEnd = {boardStart.x + boardWidth, boardStart.y + boardWidth};
-
-    BeginTextureMode(board);
-        ClearBackground(RAYWHITE);
-        float squareSize = boardWidth/8;
-        for(int j = 0; j < 8; ++j){
-            for (int k = 0; k < 8; ++k){
-                DrawRectangleV(
-                    Vector2Add(boardStart, {j*squareSize, k*squareSize}),
-                    {squareSize, squareSize},
-                    ((j + k) % 2 == 0) ? BROWN : BEIGE
-                );
-            }
-        }
-    EndTextureMode();
 }
 
 /*
@@ -324,12 +313,13 @@ void Window::createBoardTexture(){
     @param[in] pieceKey key for the corresponding piece
 */
 void Window::drawPiece(int pieceKey, Vector2 pos, bool center){
-    Vector2 origin = (center ? (Vector2){boardWidth/16, boardWidth/16} : (Vector2){0, 0});
-    Rectangle destination = (Rectangle){pos.x, pos.y, boardWidth/8, boardWidth/8};
+    float squareSize = boardWidth / 8;
+    Vector2 origin = center ? (Vector2){squareSize / 2, squareSize / 2} : (Vector2){0, 0};
+    Rectangle destination = {pos.x, pos.y, squareSize, squareSize};
 
     DrawTexturePro(
         sprites[pieceKey],
-        (Rectangle){0, 0, spriteWidth, spriteHeight},
+        {0, 0, spriteWidth, spriteHeight},
         destination,
         origin,
         0.0f,
@@ -340,7 +330,8 @@ void Window::drawPiece(int pieceKey, Vector2 pos, bool center){
 void Window::highlightSquare(Pos pos, Color color){
     if (pos.row != -1 && pos.column != -1) {
         Vector2 squarePos = getSquarePosition(pos);
-        DrawRectangleV(squarePos, {boardWidth/8, boardWidth/8}, Fade(color, 0.3f));
+        float squareSize = boardWidth / 8;
+        DrawRectangleV(squarePos, {squareSize, squareSize}, Fade(color, 0.3f));
     }
 }
 
@@ -359,8 +350,4 @@ void Window::loadSprites(){
     sprites[BRook] = LoadTexture("../assets/br.png");
     sprites[BQueen] = LoadTexture("../assets/bq.png");
     sprites[BKing] = LoadTexture("../assets/bk.png");
-}
-
-void Window::updateBoard() {
-    render();
 }

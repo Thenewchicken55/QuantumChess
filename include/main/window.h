@@ -24,7 +24,6 @@ private:
     const float spriteWidth = 300;
     const float spriteHeight = 300;
 
-    RenderTexture2D board;
     Vector2 boardStart;
     Vector2 boardEnd;
     float boardWidth;
@@ -44,40 +43,24 @@ private:
     std::mt19937 rng;
 
     void loadSprites();
-
+    void drawBoard();
     void handleLeftMouseDown();
-
     void render();
-
     void pollEvents();
-
     void resizedWindow();
-
     Vector2 getSquarePosition(Pos square);
-
-    void createBoardTexture();
-
     void drawPiece(int pieceKey, Vector2 pos, bool center = false);
-
     void highlightSquare(Pos pos, Color color = BLUE);
-
     void highlightMovesSelected();
-
     void highlightCheckedKing();
-
     void restartGame();
 
 public:
     Window();
-
     ~Window();
-
     void run();
-
     Pos getSquare(Vector2 cursorPosition);
-
     void updateBoard();
-
 };
 
 #endif
