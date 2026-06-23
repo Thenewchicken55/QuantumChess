@@ -23,8 +23,6 @@ Window::Window()
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(screenWidth, screenHeight, "Quantum Chess");
 
-    Camera2D camera = { 0 };
-    camera.zoom = 1.0f;
     SetTargetFPS(30);
 
     createBoardTexture();
@@ -175,6 +173,12 @@ void Window::handleLeftMouseDown(){
         break;
 
     case pickSquareFirst:
+        // Allow re-selecting a different own piece
+        if (!game.isEmpty(squarePicked) && getPieceColor(game.getPieceID(squarePicked)) == currentPlayer) {
+            game.getPiecesMoves(squarePicked, validMovePositions);
+            moves.m1.start = squarePicked;
+            break;
+        }
         moves.m1.end = squarePicked;
         if (std::find(validMovePositions.begin(), validMovePositions.end(), moves.m1.end) == validMovePositions.end())
             break;
@@ -186,6 +190,7 @@ void Window::handleLeftMouseDown(){
             break;
         }
         game.getPiecesMoves(squarePicked, validMovePositions);
+        if (validMovePositions.empty()) break;
         moves.m2.start = squarePicked;
         gameState = pickSquareSecond;
         break;
@@ -290,13 +295,13 @@ void Window::createBoardTexture(){
     if (board.texture.id != 0)
         UnloadRenderTexture(board);
 
-    int screenWidth = GetScreenWidth();
-    int screenHeight = GetScreenHeight();
-    board = LoadRenderTexture(screenWidth, screenHeight);
+    int w = GetScreenWidth();
+    int h = GetScreenHeight();
+    board = LoadRenderTexture(w, h);
 
-    boardWidth = ((screenWidth < screenHeight) ? screenWidth : screenHeight) * 0.95;
-    boardStart = {(float)(screenWidth-boardWidth)/2, (float)(screenHeight-boardWidth)/2};
-    boardEnd = {boardStart.x+boardWidth, boardStart.y+boardWidth};
+    boardWidth = ((w < h) ? w : h) * 0.95;
+    boardStart = {(float)(w - boardWidth) / 2, (float)(h - boardWidth) / 2};
+    boardEnd = {boardStart.x + boardWidth, boardStart.y + boardWidth};
 
     BeginTextureMode(board);
         ClearBackground(RAYWHITE);
