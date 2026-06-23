@@ -8,12 +8,16 @@ King::King(SquareColor color, Pos position, Board *board) : Piece(color, positio
 }
 
 std::vector<Pos> King::getValidMoves(){
-    Pos up = {-1, 0};
-    Pos down = {1, 0};
-    Pos left = {0, -1};
-    Pos right = {0, 1};
-
-    return {up, down, left, right};
+    std::vector<Pos> validMoves;
+    int directions[8][2] = {{1,0}, {-1,0}, {0,1}, {0,-1}, {1,1}, {1,-1}, {-1,1}, {-1,-1}};
+    for (auto& dir : directions) {
+        Pos newPos = {pos.row + dir[0], pos.column + dir[1]};
+        if (newPos.row < 0 || newPos.row >= 8 || newPos.column < 0 || newPos.column >= 8)
+            continue;
+        if (board->isEmpty(newPos) || getPieceColor(board->getPieceID(newPos)) != color)
+            validMoves.push_back(newPos);
+    }
+    return validMoves;
 }
 
 PieceID King::getType() const{

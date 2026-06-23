@@ -9,24 +9,22 @@ Queen::Queen(SquareColor color, Pos position, Board *board) : Piece(color, posit
 
 std::vector<Pos> Queen::getValidMoves(){
     std::vector<Pos> validMoves;
-
-    // Horizontal and vertical moves
-    for (int i = 1; i <= 7; ++i) {
-        validMoves.push_back({i, 0});      // Right
-        validMoves.push_back({-i, 0});     // Left
-        validMoves.push_back({0, i});      // Down
-        validMoves.push_back({0, -i});     // Up
+    int directions[8][2] = {{1,0}, {-1,0}, {0,1}, {0,-1}, {1,1}, {1,-1}, {-1,1}, {-1,-1}};
+    for (auto& dir : directions) {
+        for (int i = 1; i <= 7; ++i) {
+            Pos newPos = {pos.row + dir[0]*i, pos.column + dir[1]*i};
+            if (newPos.row < 0 || newPos.row >= 8 || newPos.column < 0 || newPos.column >= 8)
+                break;
+            if (board->isEmpty(newPos)) {
+                validMoves.push_back(newPos);
+            } else {
+                if (getPieceColor(board->getPieceID(newPos)) != color)
+                    validMoves.push_back(newPos);
+                break;
+            }
+        }
     }
-
-    // Diagonal moves
-    for (int i = 1; i <= 7; ++i) {
-        validMoves.push_back({i, i});      // Down-right
-        validMoves.push_back({i, -i});     // Down-left
-        validMoves.push_back({-i, i});     // Up-right
-        validMoves.push_back({-i, -i});    // Up-left
-    }
-
-    return {validMoves};
+    return validMoves;
 }
 
 PieceID Queen::getType() const{

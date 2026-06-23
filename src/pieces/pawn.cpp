@@ -13,22 +13,24 @@ std::vector<Pos> Pawn::getValidMoves(){
     int directionMultiplier = (color == White) ? 1 : -1;
     std::vector<Pos> moves;
 
-    Pos forward = {pos.row + 1*directionMultiplier, pos.column + 0};
-    if (board->isEmpty(forward))
+    Pos forward = {pos.row + 1*directionMultiplier, pos.column};
+    if (forward.row >= 0 && forward.row < 8 && board->isEmpty(forward))
         moves.push_back(forward);
-    
-    Pos forwardTwo = {pos.row + 2*directionMultiplier, pos.column + 0};
-    if (hasMoved == false && board->isEmpty(forward) && board->isEmpty(forwardTwo)){
+
+    Pos forwardTwo = {pos.row + 2*directionMultiplier, pos.column};
+    int startRow = (color == White) ? 1 : 6;
+    if (pos.row == startRow && board->isEmpty(forward) && board->isEmpty(forwardTwo))
         moves.push_back(forwardTwo);
-    }
 
-    Pos diagonalRight = {pos.row + 1*directionMultiplier, pos.column +1};
-    if (getPieceColor(board->getPieceID(diagonalRight)) != color && !board->isEmpty(diagonalRight))
-        moves.push_back(diagonalRight);
+    Pos diagonalRight = {pos.row + 1*directionMultiplier, pos.column + 1};
+    if (diagonalRight.row >= 0 && diagonalRight.row < 8 && diagonalRight.column >= 0 && diagonalRight.column < 8)
+        if (!board->isEmpty(diagonalRight) && getPieceColor(board->getPieceID(diagonalRight)) != color)
+            moves.push_back(diagonalRight);
 
-    Pos diagonalLeft = {pos.row + 1*directionMultiplier, pos.column + -1};
-     if (getPieceColor(board->getPieceID(diagonalLeft)) != color && !board->isEmpty(diagonalLeft))
-        moves.push_back(diagonalLeft);
+    Pos diagonalLeft = {pos.row + 1*directionMultiplier, pos.column - 1};
+    if (diagonalLeft.row >= 0 && diagonalLeft.row < 8 && diagonalLeft.column >= 0 && diagonalLeft.column < 8)
+        if (!board->isEmpty(diagonalLeft) && getPieceColor(board->getPieceID(diagonalLeft)) != color)
+            moves.push_back(diagonalLeft);
 
     return moves;
 }
