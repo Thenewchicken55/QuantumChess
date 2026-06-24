@@ -74,7 +74,8 @@ public:
     bool isStalemate(SquareColor color);
 
     // Superposition methods
-    void enterSuperposition(Pos original, Pos dest1, Pos dest2, PieceID type, SquareColor color);
+    void enterSuperposition(Pos original, const std::vector<Pos>& dests, PieceID type, SquareColor color);
+    void addSuperpositionPositions(const std::vector<Pos>& newDests);
     Pos collapseSuperposition();
     void collapseToPosition(Pos pos);
     bool hasActiveSuperposition() const;

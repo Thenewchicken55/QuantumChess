@@ -1,6 +1,8 @@
 #ifndef TYPES_H
 #define TYPES_H
 
+#include <vector>
+
 enum SquareColor{
     White,
     Black,
@@ -51,9 +53,7 @@ struct MovePair{
 struct SuperpositionState {
     bool active = false;
     Pos originalPos;
-    Pos pos1;
-    Pos pos2;
-    int numPositions = 0;
+    std::vector<Pos> positions;
     PieceID pieceType = InvalidPiece;
     SquareColor color = InvalidColor;
 };
@@ -62,8 +62,6 @@ enum States {
     selectPiece,
     selectDest1,
     selectDest2,
-    opponentPickPiece,
-    opponentPickDest,
     gameEnded
 };
 

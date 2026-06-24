@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <chrono>
 #include <string>
-#include <sstream>
 
 static bool isInside(Vector2 pos, Rectangle r) {
     return pos.x >= r.x && pos.x <= r.x + r.width &&
@@ -19,15 +18,19 @@ Window::Window()
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(screenWidth, screenHeight, "Quantum Chess");
     SetTargetFPS(30);
+    int mon = GetCurrentMonitor();
+    int mw = GetMonitorWidth(mon), mh = GetMonitorHeight(mon);
+    if (screenWidth > mw) screenWidth = mw * 4 / 5;
+    if (screenHeight > mh) screenHeight = mh * 4 / 5;
+    SetWindowSize(screenWidth, screenHeight);
     updateBoard();
     loadSprites();
 }
 
 Window::~Window(){
     net.disconnect();
-    for (auto& cur : sprites){
+    for (auto& cur : sprites)
         if (cur.id != 0) UnloadTexture(cur);
-    }
     CloseWindow();
 }
 
@@ -36,360 +39,196 @@ bool Window::isNetworkGame() const {
 }
 
 void Window::drawBoard() {
-    float squareSize = boardWidth / 8;
-    for (int col = 0; col < 8; ++col) {
-        for (int row = 0; row < 8; ++row) {
-            Vector2 pos = {boardStart.x + col * squareSize, boardStart.y + row * squareSize};
-            Color shade = ((row + col) % 2 == 0) ? Color{181, 136, 99, 255} : Color{240, 217, 181, 255};
-            DrawRectangleV(pos, {squareSize, squareSize}, shade);
-        }
-    }
+    float sq = boardWidth / 8;
+    for (int c = 0; c < 8; ++c)
+        for (int r = 0; r < 8; ++r)
+            DrawRectangleV({boardStart.x + c*sq, boardStart.y + r*sq}, {sq, sq},
+                ((r+c)%2==0) ? Color{181,136,99,255} : Color{240,217,181,255});
 }
 
 void Window::highlightCheckedKing() {
-    if (game.isInCheck(White)) {
-        Pos kingPos = game.findKing(White);
-        if (kingPos.row != -1) highlightSquare(kingPos, RED);
-    }
-    if (game.isInCheck(Black)) {
-        Pos kingPos = game.findKing(Black);
-        if (kingPos.row != -1) highlightSquare(kingPos, RED);
-    }
+    if (game.isInCheck(White)) { Pos k = game.findKing(White); if (k.row!=-1) highlightSquare(k,RED); }
+    if (game.isInCheck(Black)) { Pos k = game.findKing(Black); if (k.row!=-1) highlightSquare(k,RED); }
 }
 
-void Window::highlightMovesSelected(){
-    if (gameState == selectDest1 || gameState == selectDest2 || gameState == opponentPickDest) {
-        for (auto& cur : validMovePositions)
-            highlightSquare(cur, RED);
-    }
-
+void Window::highlightMovesSelected() {
+    if (gameState == selectDest1 || gameState == selectDest2)
+        for (auto& cur : validMovePositions) highlightSquare(cur, RED);
     switch (gameState) {
-    case selectDest2:
-        highlightSquare(moves.m1.end, PURPLE);
-    case selectDest1:
-        highlightSquare(moves.m1.start, PURPLE);
-    case opponentPickDest:
-        highlightSquare(moves.m1.start, PURPLE);
-    default:
-        break;
+    case selectDest2: highlightSquare(moves.m1.end, PURPLE);
+    case selectDest1: highlightSquare(moves.m1.start, PURPLE);
+    default: break;
     }
 }
 
 void Window::renderTitleScreen() {
-    int w = GetScreenWidth();
-    int h = GetScreenHeight();
-
-    DrawText("Quantum Chess", w/2 - MeasureText("Quantum Chess", 60)/2, h/4, 60, DARKGRAY);
-
-    Rectangle btn1 = {(float)(w/2 - 120), (float)(h/2 - 80), 240, 50};
-    Rectangle btn2 = {(float)(w/2 - 120), (float)(h/2 - 10), 240, 50};
-    Rectangle btn3 = {(float)(w/2 - 120), (float)(h/2 + 60), 240, 50};
-    Rectangle btn4 = {(float)(w/2 - 120), (float)(h/2 + 130), 240, 50};
-
-    DrawRectangleRec(btn1, DARKGRAY);
-    DrawText("Local Game", btn1.x + 60, btn1.y + 12, 24, WHITE);
-    DrawRectangleRec(btn2, DARKGRAY);
-    DrawText("Hot-Seat", btn2.x + 68, btn2.y + 12, 24, WHITE);
-    DrawRectangleRec(btn3, DARKGRAY);
-    DrawText("Host Game", btn3.x + 60, btn3.y + 12, 24, WHITE);
-    DrawRectangleRec(btn4, (net.getRole() == NetworkRole::None) ? DARKGRAY : GRAY);
-    DrawText("Join Game", btn4.x + 60, btn4.y + 12, 24, WHITE);
-
-    if (net.getRole() == NetworkRole::Host) {
-        DrawText("Hosting on port 5555... waiting for opponent", w/2 - 240, h/2 + 200, 18, DARKGRAY);
-        if (net.isConnected())
-            DrawText("Opponent connected!", w/2 - 100, h/2 + 230, 20, GREEN);
+    int w=GetScreenWidth(), h=GetScreenHeight();
+    DrawText("Quantum Chess", w/2-MeasureText("Quantum Chess",60)/2, h/4, 60, DARKGRAY);
+    auto btn = [&](const char* t, int y){
+        Rectangle r={(float)(w/2-120),(float)(h/2+y),240,50};
+        DrawRectangleRec(r,DARKGRAY); DrawText(t,r.x+(240-MeasureText(t,24))/2,r.y+12,24,WHITE); return r;
+    };
+    btn("Local Game",-80); btn("Hot-Seat",-10); btn("Host Game",60); btn("Join Game",130);
+    if (net.getRole()==NetworkRole::Host) {
+        DrawText("Hosting port 5555...", w/2-120, h/2+200,18,DARKGRAY);
+        if (net.isConnected()) DrawText("Opponent connected!", w/2-110, h/2+230,20,GREEN);
     }
     if (!networkStatus.empty())
-        DrawText(networkStatus.c_str(), w/2 - MeasureText(networkStatus.c_str(), 20)/2, h/2 + 260, 20, RED);
+        DrawText(networkStatus.c_str(), w/2-MeasureText(networkStatus.c_str(),20)/2, h/2+260,20,RED);
 }
 
 void Window::renderSetupScreen() {
-    int w = GetScreenWidth();
-    int h = GetScreenHeight();
+    int w=GetScreenWidth(), h=GetScreenHeight();
+    const char* title = (gameMode==MODE_NETWORK_HOST||gameMode==MODE_NETWORK_CLIENT)?"Network Setup":"Player Setup";
+    DrawText(title, w/2-MeasureText(title,50)/2, h/4-40, 50, DARKGRAY);
 
-    const char* title = (gameMode == MODE_NETWORK_HOST || gameMode == MODE_NETWORK_CLIENT)
-        ? "Network Setup" : "Player Setup";
-    DrawText(title, w/2 - MeasureText(title, 50)/2, h/4 - 40, 50, DARKGRAY);
-
-    int labelX = w/2 - 200;
-    int fieldX = w/2 - 80;
-    int y1 = h/2 - 40;
-    int y2 = h/2 + 20;
-
-    if (gameMode == MODE_NETWORK_CLIENT) {
-        DrawText("Host IP:", labelX, y1, 24, DARKGRAY);
-        DrawText("Your Name:", labelX, y2, 24, DARKGRAY);
-        Color ipCol = (ipInputActive == 0) ? LIGHTGRAY : WHITE;
-        DrawRectangle(fieldX - 4, y1 - 6, 208, 38, ipCol);
-        DrawRectangleLines(fieldX - 4, y1 - 6, 208, 38, DARKGRAY);
-        DrawText(ipInput.c_str(), fieldX, y1, 22, BLACK);
-        Color nmCol = (ipInputActive == 1) ? LIGHTGRAY : WHITE;
-        DrawRectangle(fieldX - 4, y2 - 6, 208, 38, nmCol);
-        DrawRectangleLines(fieldX - 4, y2 - 6, 208, 38, DARKGRAY);
-        DrawText(playerNameWhite.c_str(), fieldX, y2, 22, BLACK);
-        Rectangle joinBtn = {(float)(w/2 - 100), (float)(h/2 + 80), 200, 40};
-        DrawRectangleRec(joinBtn, DARKGRAY);
-        DrawText("Connect", joinBtn.x + 50, joinBtn.y + 8, 22, WHITE);
-        if (!networkStatus.empty())
-            DrawText(networkStatus.c_str(), w/2 - MeasureText(networkStatus.c_str(), 18)/2, h/2 + 140, 18, RED);
-    } else if (gameMode == MODE_NETWORK_HOST) {
-        DrawText("Your Name (White):", labelX, h/2 - 10, 24, DARKGRAY);
-        DrawRectangle(fieldX - 4, h/2 - 14, 208, 38, LIGHTGRAY);
-        DrawRectangleLines(fieldX - 4, h/2 - 14, 208, 38, DARKGRAY);
-        DrawText(playerNameWhite.c_str(), fieldX, h/2 + 2, 22, BLACK);
-        if (!networkStatus.empty())
-            DrawText(networkStatus.c_str(), w/2 - MeasureText(networkStatus.c_str(), 18)/2, h/2 + 60, 18, RED);
+    if (gameMode==MODE_NETWORK_CLIENT) {
+        DrawText("Host IP:", w/2-200, h/2-40,24,DARKGRAY);
+        DrawText("Your Name:", w/2-200, h/2+20,24,DARKGRAY);
+        DrawRectangle(w/2-84,h/2-46,208,38,ipInputActive==0?LIGHTGRAY:WHITE);
+        DrawRectangleLines(w/2-84,h/2-46,208,38,DARKGRAY);
+        DrawText(ipInput.c_str(), w/2-80, h/2-40,22,BLACK);
+        DrawRectangle(w/2-84,h/2+14,208,38,ipInputActive==1?LIGHTGRAY:WHITE);
+        DrawRectangleLines(w/2-84,h/2+14,208,38,DARKGRAY);
+        DrawText(playerNameWhite.c_str(), w/2-80, h/2+20,22,BLACK);
+        Rectangle jb={(float)(w/2-100),(float)(h/2+80),200,40};
+        DrawRectangleRec(jb,DARKGRAY); DrawText("Connect",jb.x+50,jb.y+8,22,WHITE);
+        if (!networkStatus.empty()) DrawText(networkStatus.c_str(),w/2-MeasureText(networkStatus.c_str(),18)/2,h/2+140,18,RED);
+    } else if (gameMode==MODE_NETWORK_HOST) {
+        DrawText("Your Name (White):", w/2-200, h/2-10,24,DARKGRAY);
+        DrawRectangle(w/2-84,h/2-14,208,38,LIGHTGRAY);
+        DrawRectangleLines(w/2-84,h/2-14,208,38,DARKGRAY);
+        DrawText(playerNameWhite.c_str(), w/2-80, h/2+2,22,BLACK);
+        if (!networkStatus.empty()) DrawText(networkStatus.c_str(),w/2-MeasureText(networkStatus.c_str(),18)/2,h/2+60,18,RED);
     } else {
-        DrawText("White:", labelX, y1, 24, DARKGRAY);
-        DrawText("Black:", labelX, y2, 24, DARKGRAY);
-        Color col1 = (nameInputActive == 0) ? LIGHTGRAY : WHITE;
-        Color col2 = (nameInputActive == 1) ? LIGHTGRAY : WHITE;
-        DrawRectangle(fieldX, y1 - 2, 200, 30, col1);
-        DrawRectangle(fieldX, y2 - 2, 200, 30, col2);
-        DrawRectangleLines(fieldX, y1 - 2, 200, 30, DARKGRAY);
-        DrawRectangleLines(fieldX, y2 - 2, 200, 30, DARKGRAY);
-        DrawText(playerNameWhite.c_str(), fieldX + 4, y1, 22, BLACK);
-        DrawText(playerNameBlack.c_str(), fieldX + 4, y2, 22, BLACK);
-        Rectangle startBtn = {(float)(w/2 - 100), (float)(h/2 + 80), 200, 40};
-        DrawRectangleRec(startBtn, DARKGRAY);
-        DrawText("Start Game", startBtn.x + 30, startBtn.y + 8, 22, WHITE);
-        DrawText("Click a name field, then type on keyboard", w/2 - 200, h/2 + 140, 16, GRAY);
+        DrawText("White:", w/2-200, h/2-40,24,DARKGRAY);
+        DrawText("Black:", w/2-200, h/2+20,24,DARKGRAY);
+        DrawRectangle(w/2-80,h/2-42,200,30,nameInputActive==0?LIGHTGRAY:WHITE);
+        DrawRectangle(w/2-80,h/2+18,200,30,nameInputActive==1?LIGHTGRAY:WHITE);
+        DrawRectangleLines(w/2-80,h/2-42,200,30,DARKGRAY);
+        DrawRectangleLines(w/2-80,h/2+18,200,30,DARKGRAY);
+        DrawText(playerNameWhite.c_str(), w/2-76, h/2-38,22,BLACK);
+        DrawText(playerNameBlack.c_str(), w/2-76, h/2+22,22,BLACK);
+        Rectangle sb={(float)(w/2-100),(float)(h/2+80),200,40};
+        DrawRectangleRec(sb,DARKGRAY); DrawText("Start Game",sb.x+30,sb.y+8,22,WHITE);
+        DrawText("Click name, then type", w/2-120, h/2+140,16,GRAY);
     }
-    DrawText("Press ESC to go back", w/2 - 90, h - 40, 18, GRAY);
+    DrawText("ESC to go back", w/2-75, h-40,18,GRAY);
 }
 
 void Window::renderGame() {
     BeginDrawing();
-        ClearBackground(RAYWHITE);
-        drawBoard();
+    ClearBackground(RAYWHITE);
+    drawBoard();
+    if (lastMove.start.row!=-1) {
+        highlightSquare(lastMove.start, Fade(YELLOW,0.3f));
+        highlightSquare(lastMove.end, Fade(YELLOW,0.3f));
+    }
+    for (auto cur : game.getPieces())
+        drawPiece(cur.second, getSquarePosition(cur.first));
+    drawSuperpositionGhosts();
+    highlightSquare(getSquare(GetMousePosition()));
+    highlightMovesSelected();
+    highlightCheckedKing();
 
-        if (lastMove.start.row != -1) {
-            highlightSquare(lastMove.start, Fade(YELLOW, 0.3f));
-            highlightSquare(lastMove.end, Fade(YELLOW, 0.3f));
-        }
-
-        auto pieces = game.getPieces();
-        for (auto cur : pieces)
-            drawPiece(cur.second, getSquarePosition(cur.first));
-
-        drawSuperpositionGhosts();
-
-        highlightSquare(getSquare(GetMousePosition()));
-        highlightMovesSelected();
-        highlightCheckedKing();
-
-        if (gameOver) {
-            DrawText(gameOverMessage.c_str(), 20, 20, 40, DARKGRAY);
-            DrawText(isNetworkGame() ? "Press ESC to quit" : "Press R to restart", 20, 70, 30, DARKGRAY);
-        } else if (waitingForOpponent) {
-            DrawText("Waiting for opponent...", 20, 20, 30, DARKGRAY);
-        } else {
-            std::string turnText;
-            if (gameState == selectPiece || gameState == selectDest1 || gameState == selectDest2) {
-                turnText = (currentPlayer == White ? playerNameWhite : playerNameBlack) + "'s turn";
-            } else if (gameState == opponentPickPiece || gameState == opponentPickDest) {
-                turnText = (currentPlayer == White ? playerNameWhite : playerNameBlack) + " (Opponent)";
-            }
-
-            std::string modeText = quantumMode ? "[Q] Quantum: ON" : "[Q] Quantum: OFF";
-            int w = GetScreenWidth();
-            DrawText(modeText.c_str(), w - MeasureText(modeText.c_str(), 22) - 20, 20, 22,
-                     quantumMode ? PURPLE : GRAY);
-            DrawText(turnText.c_str(), 20, 20, 30, BLACK);
-
-            if (game.isInCheck(White)) DrawText("White in check", 20, 55, 25, RED);
-            if (game.isInCheck(Black)) DrawText("Black in check", 20, 85, 25, RED);
-        }
-
-        if (passClickRequired && !isNetworkGame())
-            renderPassOverlay();
-
+    if (gameOver) {
+        DrawText(gameOverMessage.c_str(),20,20,40,DARKGRAY);
+        DrawText(isNetworkGame()?"ESC to quit":"R to restart",20,70,30,DARKGRAY);
+    } else if (waitingForOpponent) {
+        DrawText("Waiting for opponent...",20,20,30,DARKGRAY);
+    } else {
+        auto name = (currentPlayer==White)?playerNameWhite:playerNameBlack;
+        DrawText((name+"'s turn").c_str(),20,20,30,BLACK);
+        std::string m = quantumMode?"[Q] Quantum: ON":"[Q] Quantum: OFF";
+        DrawText(m.c_str(),GetScreenWidth()-MeasureText(m.c_str(),22)-20,20,22,quantumMode?PURPLE:GRAY);
+        if (game.isInCheck(White)) DrawText("White in check",20,55,25,RED);
+        if (game.isInCheck(Black)) DrawText("Black in check",20,85,25,RED);
+    }
+    if (passClickRequired && !isNetworkGame()) {
+        DrawRectangle(0,0,GetScreenWidth(),GetScreenHeight(),Fade(BLACK,0.5f));
+        std::string pm = "Pass to "+((currentPlayer==White)?playerNameWhite:playerNameBlack)+" \u2014 Click";
+        DrawText(pm.c_str(),GetScreenWidth()/2-MeasureText(pm.c_str(),36)/2,GetScreenHeight()/2-18,36,WHITE);
+    }
     EndDrawing();
 }
 
-void Window::renderPassOverlay() {
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.5f));
-    std::string msg = "Pass to " + ((currentPlayer == White) ? playerNameWhite : playerNameBlack);
-    msg += " \u2014 Click anywhere";
-    int w = GetScreenWidth();
-    int h = GetScreenHeight();
-    DrawText(msg.c_str(), w/2 - MeasureText(msg.c_str(), 36)/2, h/2 - 18, 36, WHITE);
-}
-
 void Window::render() {
-    if (currentScreen == SCREEN_TITLE) {
-        BeginDrawing();
-            ClearBackground(RAYWHITE);
-            renderTitleScreen();
-        EndDrawing();
-    } else if (currentScreen == SCREEN_SETUP) {
-        BeginDrawing();
-            ClearBackground(RAYWHITE);
-            renderSetupScreen();
-        EndDrawing();
-    } else {
-        renderGame();
-    }
+    if (currentScreen==SCREEN_TITLE) { BeginDrawing(); ClearBackground(RAYWHITE); renderTitleScreen(); EndDrawing(); }
+    else if (currentScreen==SCREEN_SETUP) { BeginDrawing(); ClearBackground(RAYWHITE); renderSetupScreen(); EndDrawing(); }
+    else renderGame();
 }
 
 void Window::handleTitleClick() {
-    Vector2 mouse = GetMousePosition();
-    int w = GetScreenWidth();
-    int h = GetScreenHeight();
-
-    Rectangle btn1 = {(float)(w/2 - 120), (float)(h/2 - 80), 240, 50};
-    Rectangle btn2 = {(float)(w/2 - 120), (float)(h/2 - 10), 240, 50};
-    Rectangle btn3 = {(float)(w/2 - 120), (float)(h/2 + 60), 240, 50};
-    Rectangle btn4 = {(float)(w/2 - 120), (float)(h/2 + 130), 240, 50};
-
-    audio.playButtonClick();
-
-    if (isInside(mouse, btn1)) {
-        gameMode = MODE_LOCAL;
-        currentScreen = SCREEN_SETUP;
-    } else if (isInside(mouse, btn2)) {
-        gameMode = MODE_HOTSEAT;
-        currentScreen = SCREEN_SETUP;
-    } else if (isInside(mouse, btn3)) {
-        gameMode = MODE_NETWORK_HOST;
-        if (net.startHost()) {
-            networkStatus = "";
-            currentScreen = SCREEN_SETUP;
-        } else {
-            networkStatus = "Failed to start host";
-        }
-    } else if (isInside(mouse, btn4)) {
-        if (net.getRole() == NetworkRole::None) {
-            gameMode = MODE_NETWORK_CLIENT;
-            currentScreen = SCREEN_SETUP;
-        }
-    }
+    Vector2 m = GetMousePosition();
+    int w=GetScreenWidth(), h=GetScreenHeight(); audio.playButtonClick();
+    auto hit = [&](int y){return isInside(m,{(float)(w/2-120),(float)(h/2+y),240,50});};
+    if (hit(-80)) { gameMode=MODE_LOCAL; currentScreen=SCREEN_SETUP; }
+    else if (hit(-10)) { gameMode=MODE_HOTSEAT; currentScreen=SCREEN_SETUP; }
+    else if (hit(60)) { gameMode=MODE_NETWORK_HOST; if (net.startHost()) { networkStatus=""; currentScreen=SCREEN_SETUP; } else networkStatus="Failed host"; }
+    else if (hit(130)) { if (net.getRole()==NetworkRole::None) { gameMode=MODE_NETWORK_CLIENT; currentScreen=SCREEN_SETUP; } }
 }
 
 void Window::handleSetupClick() {
-    Vector2 mouse = GetMousePosition();
-    int w = GetScreenWidth();
-    int h = GetScreenHeight();
-    audio.playButtonClick();
-
-    if (gameMode == MODE_NETWORK_HOST) {
-        if (net.isConnected() && !gameOver) startGame();
-    } else if (gameMode == MODE_NETWORK_CLIENT) {
-        int fieldX = w/2 - 80;
-        int y1 = h/2 - 40;
-        int y2 = h/2 + 20;
-        if (isInside(mouse, {(float)(fieldX - 4), (float)(y1 - 6), 208, 38}))
-            ipInputActive = 0;
-        else if (isInside(mouse, {(float)(fieldX - 4), (float)(y2 - 6), 208, 38}))
-            ipInputActive = 1;
-        Rectangle joinBtn = {(float)(w/2 - 100), (float)(h/2 + 80), 200, 40};
-        if (isInside(mouse, joinBtn)) {
-            if (net.connectToHost(ipInput.c_str())) {
-                networkStatus = "";
-                playerNameBlack = playerNameWhite;
-                playerNameWhite = "Host";
-                startGame();
-            } else {
-                networkStatus = "Failed to connect to " + ipInput;
-            }
+    Vector2 m = GetMousePosition();
+    int w=GetScreenWidth(), h=GetScreenHeight(); audio.playButtonClick();
+    if (gameMode==MODE_NETWORK_HOST) { if (net.isConnected()) startGame(); }
+    else if (gameMode==MODE_NETWORK_CLIENT) {
+        if (isInside(m,{(float)(w/2-84),(float)(h/2-46),208,38})) ipInputActive=0;
+        else if (isInside(m,{(float)(w/2-84),(float)(h/2+14),208,38})) ipInputActive=1;
+        if (isInside(m,{(float)(w/2-100),(float)(h/2+80),200,40})) {
+            if (net.connectToHost(ipInput.c_str())) { networkStatus=""; playerNameBlack=playerNameWhite; playerNameWhite="Host"; startGame(); }
+            else networkStatus="Failed connect";
         }
     } else {
-        int fieldX = w/2 - 80;
-        int y1 = h/2 - 42;
-        int y2 = h/2 + 18;
-        if (isInside(mouse, {(float)(fieldX - 6), (float)(y1 - 6), 212, 38}))
-            nameInputActive = 0;
-        else if (isInside(mouse, {(float)(fieldX - 6), (float)(y2 - 6), 212, 38}))
-            nameInputActive = 1;
-        Rectangle startBtn = {(float)(w/2 - 100), (float)(h/2 + 80), 200, 40};
-        if (isInside(mouse, startBtn)) startGame();
+        if (isInside(m,{(float)(w/2-80),(float)(h/2-42),200,30})) nameInputActive=0;
+        else if (isInside(m,{(float)(w/2-80),(float)(h/2+18),200,30})) nameInputActive=1;
+        if (isInside(m,{(float)(w/2-100),(float)(h/2+80),200,40})) startGame();
     }
 }
 
 void Window::handleSetupKeyInput() {
-    auto handleField = [](std::string& s, int maxLen) {
-        int key = GetCharPressed();
-        while (key > 0) {
-            if (key >= 32 && key <= 126 && s.size() < (size_t)maxLen)
-                s.push_back((char)key);
-            key = GetCharPressed();
-        }
-        if (IsKeyPressed(KEY_BACKSPACE) && !s.empty()) s.pop_back();
-    };
-
-    if (gameMode == MODE_NETWORK_CLIENT) {
-        if (ipInputActive == 0) handleField(ipInput, 20);
-        else handleField(playerNameWhite, 16);
-        if (IsKeyPressed(KEY_ENTER)) {
-            if (net.connectToHost(ipInput.c_str())) {
-                networkStatus = "";
-                playerNameBlack = playerNameWhite;
-                playerNameWhite = "Host";
-                startGame();
-            } else {
-                networkStatus = "Failed to connect to " + ipInput;
-            }
-        }
-    } else if (gameMode == MODE_NETWORK_HOST) {
-        handleField(playerNameWhite, 16);
-        if (IsKeyPressed(KEY_ENTER) && net.isConnected()) startGame();
-    } else {
-        if (nameInputActive == 0) handleField(playerNameWhite, 16);
-        else handleField(playerNameBlack, 16);
-        if (IsKeyPressed(KEY_ENTER)) startGame();
-    }
+    auto f = [](std::string& s, int mx){ int k; while((k=GetCharPressed())>0) if(k>=32&&k<=126&&(int)s.size()<mx) s.push_back((char)k); if(IsKeyPressed(KEY_BACKSPACE)&&!s.empty()) s.pop_back(); };
+    if (gameMode==MODE_NETWORK_CLIENT) { if(ipInputActive==0) f(ipInput,20); else f(playerNameWhite,16); if(IsKeyPressed(KEY_ENTER)&&net.connectToHost(ipInput.c_str())){networkStatus="";playerNameBlack=playerNameWhite;playerNameWhite="Host";startGame();} else if(IsKeyPressed(KEY_ENTER)) networkStatus="Failed"; }
+    else if (gameMode==MODE_NETWORK_HOST) { f(playerNameWhite,16); if(IsKeyPressed(KEY_ENTER)&&net.isConnected()) startGame(); }
+    else { f(nameInputActive==0?playerNameWhite:playerNameBlack,16); if(IsKeyPressed(KEY_ENTER)) startGame(); }
 }
 
 void Window::startGame() {
-    if (playerNameWhite.empty()) playerNameWhite = "White";
-    if (playerNameBlack.empty()) playerNameBlack = "Black";
-    game.resetBoard();
-    gameState = selectPiece;
-    currentPlayer = White;
-    gameOver = false;
-    gameOverMessage = "";
-    validMovePositions.clear();
-    moves = {};
-    lastMove = {{-1,-1}, {-1,-1}};
-    captureMissed = false;
-    passClickRequired = false;
-    waitingForOpponent = (gameMode == MODE_NETWORK_CLIENT);
-    quantumMode = true;
-    currentScreen = SCREEN_PLAYING;
+    if (playerNameWhite.empty()) playerNameWhite="White";
+    if (playerNameBlack.empty()) playerNameBlack="Black";
+    game.resetBoard(); gameState=selectPiece; currentPlayer=White; gameOver=false; gameOverMessage="";
+    validMovePositions.clear(); moves={}; lastMove={{-1,-1},{-1,-1}}; passClickRequired=false;
+    waitingForOpponent=(gameMode==MODE_NETWORK_CLIENT); quantumMode=true; currentScreen=SCREEN_PLAYING;
 }
 
-void Window::pollEvents(){
-    if(IsKeyPressed(KEY_ESCAPE)) {
-        if (currentScreen == SCREEN_PLAYING) {
-            net.disconnect(); waitingForOpponent = false; gameMode = MODE_LOCAL; currentScreen = SCREEN_TITLE;
-        } else if (currentScreen == SCREEN_TITLE) {
-            net.disconnect(); CloseWindow();
-        } else {
-            net.disconnect(); currentScreen = SCREEN_TITLE;
-        }
+void Window::endTurn() {
+    currentPlayer = (currentPlayer==White)?Black:White;
+    checkGameEnd();
+    if (gameOver) audio.playCheckmate();
+    else if (game.isInCheck(currentPlayer)) audio.playCheck();
+    if (gameMode==MODE_HOTSEAT&&!gameOver) passClickRequired=true;
+    gameState = selectPiece;
+}
+
+void Window::pollEvents() {
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        if (currentScreen==SCREEN_PLAYING) { net.disconnect(); waitingForOpponent=false; gameMode=MODE_LOCAL; currentScreen=SCREEN_TITLE; }
+        else if (currentScreen==SCREEN_TITLE) { net.disconnect(); CloseWindow(); }
+        else { net.disconnect(); currentScreen=SCREEN_TITLE; }
     }
     if (IsWindowResized()) resizedWindow();
-
-    if (currentScreen == SCREEN_TITLE) {
+    if (currentScreen==SCREEN_TITLE) {
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) handleTitleClick();
-        if (net.getRole() == NetworkRole::Host && net.isConnected()) currentScreen = SCREEN_SETUP;
-    } else if (currentScreen == SCREEN_SETUP) {
+        if (net.getRole()==NetworkRole::Host&&net.isConnected()) currentScreen=SCREEN_SETUP;
+    } else if (currentScreen==SCREEN_SETUP) {
         handleSetupKeyInput();
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) handleSetupClick();
-    } else if (currentScreen == SCREEN_PLAYING) {
-        if (IsKeyPressed(KEY_R) && !isNetworkGame()) restartGame();
-        if (IsKeyPressed(KEY_Q) && !gameOver && !waitingForOpponent) {
-            quantumMode = !quantumMode;
-            audio.playButtonClick();
-        }
-
+    } else if (currentScreen==SCREEN_PLAYING) {
+        if (IsKeyPressed(KEY_R)&&!isNetworkGame()) restartGame();
+        if (IsKeyPressed(KEY_Q)&&!gameOver&&!waitingForOpponent) { quantumMode=!quantumMode; audio.playButtonClick(); }
         if (isNetworkGame()) processNetworkMessages();
         if (waitingForOpponent) return;
-        if (passClickRequired) {
-            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) passClickRequired = false;
-            return;
-        }
+        if (passClickRequired) { if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) passClickRequired=false; return; }
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) handleLeftMouseDown();
     }
 }
@@ -397,459 +236,205 @@ void Window::pollEvents(){
 void Window::processNetworkMessages() {
     while (true) {
         NetMessage msg = net.receiveMessage();
-        if (msg.type == NetMsgType::None) break;
-
+        if (msg.type==NetMsgType::None) break;
         switch (msg.type) {
-        case NetMsgType::Quantum:
-            applyRemoteQuantum(msg);
+        case NetMsgType::Quantum: {
+            Pos o={msg.data[0],msg.data[1]};
+            std::vector<Pos> d={{msg.data[2],msg.data[3]},{msg.data[4],msg.data[5]}};
+            auto side = (currentPlayer==White)?Black:White;
+            game.enterSuperposition(o,d,game.getPieceID(o),side);
+            currentPlayer=side; waitingForOpponent=false;
             break;
-        case NetMsgType::Move:
-            applyRemoteMove(msg);
+        }
+        case NetMsgType::Move: {
+            Move mv={{msg.data[0],msg.data[1]},{msg.data[2],msg.data[3]}};
+            bool wc=!game.isEmpty(mv.end);
+            game.movePiece(mv); lastMove=mv;
+            if(wc) audio.playCapture(); else audio.playMove();
+            currentPlayer=(currentPlayer==White)?Black:White;
+            checkGameEnd();
+            if(gameOver) audio.playCheckmate(); else if(game.isInCheck(currentPlayer)) audio.playCheck();
+            waitingForOpponent=false;
             break;
-        case NetMsgType::Collapse:
-            applyRemoteCollapse(msg);
-            break;
-        case NetMsgType::Miss:
-            waitingForOpponent = false;
-            {
-                bool wasCheck = game.isInCheck(currentPlayer);
-                checkGameEnd();
-                if (!gameOver && wasCheck) audio.playCheck();
-                if (gameOver) audio.playCheckmate();
-            }
-            break;
-        case NetMsgType::Disconnect:
-            gameOver = true;
-            gameOverMessage = "Opponent disconnected";
-            waitingForOpponent = false;
-            break;
+        }
+        case NetMsgType::Miss: waitingForOpponent=false; checkGameEnd(); if(gameOver) audio.playCheckmate(); break;
+        case NetMsgType::Disconnect: gameOver=true; gameOverMessage="Opponent disconnected"; waitingForOpponent=false; break;
         default: break;
         }
     }
-    if (!waitingForOpponent && !gameOver)
-        gameState = selectPiece;
 }
 
-void Window::sendCurrentMove() {
-    if (!isNetworkGame()) return;
-    NetMessage msg;
-    msg.type = NetMsgType::Move;
-    msg.data[0] = moves.m1.start.row;
-    msg.data[1] = moves.m1.start.column;
-    msg.data[2] = moves.m1.end.row;
-    msg.data[3] = moves.m1.end.column;
-    net.sendMessage(msg);
-    waitingForOpponent = true;
-}
-
-void Window::sendQuantumMove() {
-    if (!isNetworkGame()) return;
-    NetMessage msg;
-    msg.type = NetMsgType::Quantum;
-    msg.data[0] = moves.m1.start.row;
-    msg.data[1] = moves.m1.start.column;
-    msg.data[2] = moves.m1.end.row;
-    msg.data[3] = moves.m1.end.column;
-    msg.data[4] = moves.m2.end.row;
-    msg.data[5] = moves.m2.end.column;
-    net.sendMessage(msg);
-    waitingForOpponent = true;
-}
-
-void Window::applyRemoteQuantum(const NetMessage& msg) {
-    Pos original = {msg.data[0], msg.data[1]};
-    Pos dest1 = {msg.data[2], msg.data[3]};
-    Pos dest2 = {msg.data[4], msg.data[5]};
-    PieceID type = game.getPieceID(original);
-    game.enterSuperposition(original, dest1, dest2, type,
-                            (currentPlayer == White) ? Black : White);
-    currentPlayer = (currentPlayer == White) ? Black : White;
-    gameState = selectPiece;
-    waitingForOpponent = false;
-}
-
-void Window::applyRemoteMove(const NetMessage& msg) {
-    Move m = {{msg.data[0], msg.data[1]}, {msg.data[2], msg.data[3]}};
-    bool wasCapture = !game.isEmpty(m.end);
-    game.movePiece(m);
-    lastMove = m;
-    if (wasCapture) audio.playCapture(); else audio.playMove();
-    currentPlayer = (currentPlayer == White) ? Black : White;
-    // No auto-collapse — superposition persists across turns
-    bool wasCheck = game.isInCheck(currentPlayer);
-    checkGameEnd();
-    if (gameOver) audio.playCheckmate();
-    else if (wasCheck) audio.playCheck();
-    gameState = selectPiece;
-    waitingForOpponent = false;
-}
-
-void Window::applyRemoteCollapse(const NetMessage& msg) {
-    Pos result = {msg.data[0], msg.data[1]};
-    audio.playQuantumCollapse();
-    collapseResult = result;
-    game.clearSuperposition();
-}
-
-void Window::handleLeftMouseDown(){
-    if (gameOver || passClickRequired || waitingForOpponent) return;
-
-    auto squarePicked = getSquare(GetMousePosition());
-    if (squarePicked.row == -1) return;
+void Window::handleLeftMouseDown() {
+    if (gameOver||passClickRequired||waitingForOpponent) return;
+    auto sp = getSquare(GetMousePosition());
+    if (sp.row==-1) return;
 
     switch (gameState) {
 
     case selectPiece: {
-        // Check if clicking a superposition ghost → collapse to it
-        if (game.isSuperpositionSquare(squarePicked)) {
-            Pos orig = game.getSuperposition().originalPos;
-            audio.playQuantumCollapse();
-            game.collapseToPosition(squarePicked);
-            lastMove = {orig, squarePicked};
-            SquareColor next = (currentPlayer == White) ? Black : White;
-            currentPlayer = next;
-            checkGameEnd();
-            if (gameOver) audio.playCheckmate();
-            else if (game.isInCheck(currentPlayer)) audio.playCheck();
-            if (gameMode == MODE_HOTSEAT && !gameOver) passClickRequired = true;
-            gameState = selectPiece;
-            break;
+        // Opponent ghost → collapse attempt
+        if (game.isSuperpositionSquare(sp)&&game.hasActiveSuperposition()&&game.getSuperposition().color!=currentPlayer) {
+            Pos orig=game.getSuperposition().originalPos;
+            Pos result=game.collapseSuperposition();
+            lastMove={orig,result};
+            if (result==sp) { game.movePiece({moves.m1.start,result}); lastMove={moves.m1.start,result}; audio.playCapture(); }
+            else audio.playMiss();
+            endTurn(); break;
         }
-
-        {
-            bool canSelect = !game.isEmpty(squarePicked) &&
-                             getPieceColor(game.getPieceID(squarePicked)) == currentPlayer;
-            if (!canSelect && game.isSuperpositionOriginal(squarePicked)) {
-                canSelect = game.getSuperposition().color == currentPlayer;
-            }
-            if (!canSelect) {
-                audio.playMoveInvalid();
-                break;
-            }
+        // Own ghost → collapse
+        if (game.isSuperpositionSquare(sp)&&game.hasActiveSuperposition()&&game.getSuperposition().color==currentPlayer) {
+            Pos orig=game.getSuperposition().originalPos;
+            game.collapseToPosition(sp);
+            lastMove={orig,sp};
+            endTurn(); break;
         }
-        game.getPiecesMoves(squarePicked, validMovePositions);
-
-        // When re-entering superposition, add current ghost positions as valid moves
-        if (game.isSuperpositionOriginal(squarePicked) && game.hasActiveSuperposition()) {
-            const auto& sup = game.getSuperposition();
-            if (std::find(validMovePositions.begin(), validMovePositions.end(), sup.pos1) == validMovePositions.end())
-                validMovePositions.push_back(sup.pos1);
-            if (std::find(validMovePositions.begin(), validMovePositions.end(), sup.pos2) == validMovePositions.end())
-                validMovePositions.push_back(sup.pos2);
-        }
-
-        if (validMovePositions.empty()) {
-            audio.playMoveInvalid();
-            validMovePositions.clear();
-            break;
-        }
-        moves.m1.start = squarePicked;
-        moves.m2.start = squarePicked;
+        // Select own piece
+        bool sel = !game.isEmpty(sp)&&getPieceColor(game.getPieceID(sp))==currentPlayer;
+        if (!sel&&game.isSuperpositionOriginal(sp)) sel=game.getSuperposition().color==currentPlayer;
+        if (!sel) { audio.playMoveInvalid(); break; }
+        game.getPiecesMoves(sp,validMovePositions);
+        if (game.isSuperpositionOriginal(sp)&&game.hasActiveSuperposition())
+            for (auto& p : game.getSuperposition().positions)
+                if (std::find(validMovePositions.begin(),validMovePositions.end(),p)==validMovePositions.end())
+                    validMovePositions.push_back(p);
+        if (validMovePositions.empty()) { audio.playMoveInvalid(); validMovePositions.clear(); break; }
+        moves.m1.start=sp; moves.m2.start=sp;
         audio.playButtonClick();
-        gameState = selectDest1;
+        gameState=selectDest1;
         break;
     }
 
     case selectDest1: {
-        // Allow re-selecting own piece
-        if (!game.isEmpty(squarePicked) && getPieceColor(game.getPieceID(squarePicked)) == currentPlayer) {
-            game.getPiecesMoves(squarePicked, validMovePositions);
-            if (validMovePositions.empty()) {
-                audio.playMoveInvalid();
-                validMovePositions.clear();
-                break;
-            }
-            moves.m1.start = squarePicked;
-            moves.m2.start = squarePicked;
-            audio.playButtonClick();
-            break;
+        // Re-select own piece
+        bool sel = !game.isEmpty(sp)&&getPieceColor(game.getPieceID(sp))==currentPlayer;
+        if (!sel&&game.isSuperpositionOriginal(sp)) sel=game.getSuperposition().color==currentPlayer;
+        if (sel) {
+            game.getPiecesMoves(sp,validMovePositions);
+            if (game.isSuperpositionOriginal(sp)&&game.hasActiveSuperposition())
+                for (auto& p : game.getSuperposition().positions)
+                    if (std::find(validMovePositions.begin(),validMovePositions.end(),p)==validMovePositions.end())
+                        validMovePositions.push_back(p);
+            if (validMovePositions.empty()) { audio.playMoveInvalid(); validMovePositions.clear(); break; }
+            moves.m1.start=sp; moves.m2.start=sp; audio.playButtonClick(); break;
         }
-        moves.m1.end = squarePicked;
-        if (std::find(validMovePositions.begin(), validMovePositions.end(), moves.m1.end) == validMovePositions.end()) {
-            audio.playMoveInvalid();
-            break;
+        // Validate
+        if (std::find(validMovePositions.begin(),validMovePositions.end(),sp)==validMovePositions.end()) { audio.playMoveInvalid(); break; }
+        // Opponent ghost → capture attempt
+        if (game.isSuperpositionSquare(sp)&&game.hasActiveSuperposition()&&game.getSuperposition().color!=currentPlayer) {
+            Pos orig=game.getSuperposition().originalPos; Pos result=game.collapseSuperposition();
+            lastMove={orig,result};
+            if (result==sp) { game.movePiece({moves.m1.start,result}); lastMove={moves.m1.start,result}; audio.playCapture(); }
+            else audio.playMiss();
+            validMovePositions.clear(); endTurn(); break;
         }
-        if (!game.isEmpty(squarePicked) && !game.isSuperpositionSquare(squarePicked)) {
-            audio.playMoveInvalid();
-            break;
-        }
-
-        if (quantumMode) {
-            audio.playButtonClick();
-            gameState = selectDest2;
-        } else {
+        if (!game.isEmpty(sp)&&!game.isSuperpositionSquare(sp)) { audio.playMoveInvalid(); break; }
+        moves.m1.end=sp;
+        if (quantumMode) { audio.playButtonClick(); gameState=selectDest2; }
+        else {
             validMovePositions.clear();
-
-            if (game.isSuperpositionSquare(moves.m1.end) && game.hasActiveSuperposition()) {
-                audio.playQuantumCollapse();
-                game.collapseToPosition(moves.m1.end);
-                lastMove = moves.m1;
-            } else {
-                bool wasCapture = !game.isEmpty(moves.m1.end);
-                game.movePiece(moves.m1);
-                lastMove = moves.m1;
-                if (wasCapture) audio.playCapture(); else audio.playMove();
-            }
-
-            SquareColor next = (currentPlayer == White) ? Black : White;
-            currentPlayer = next;
-            checkGameEnd();
-            if (gameOver) audio.playCheckmate();
-            else if (game.isInCheck(currentPlayer)) audio.playCheck();
-            if (gameMode == MODE_HOTSEAT && !gameOver) passClickRequired = true;
-            gameState = selectPiece;
+            if (game.isSuperpositionSquare(moves.m1.end)&&game.hasActiveSuperposition())
+                { game.collapseToPosition(moves.m1.end); lastMove=moves.m1; }
+            else { bool wc=!game.isEmpty(moves.m1.end); game.movePiece(moves.m1); lastMove=moves.m1; if(wc) audio.playCapture(); else audio.playMove(); }
+            endTurn();
         }
         break;
     }
 
     case selectDest2: {
-        // Allow re-selecting first destination
-        if (squarePicked.row == moves.m1.end.row && squarePicked.column == moves.m1.end.column) {
-            moves.m1.end = {-1, -1};
-            gameState = selectDest1;
-            break;
-        }
-
-        moves.m2.end = squarePicked;
-        if (std::find(validMovePositions.begin(), validMovePositions.end(), moves.m2.end) == validMovePositions.end()) {
-            audio.playMoveInvalid();
-            break;
-        }
-        if (!game.isEmpty(squarePicked) && !game.isSuperpositionSquare(squarePicked)) {
-            audio.playMoveInvalid();
-            break;
-        }
-
-        if (moves.m1.end.row == moves.m2.end.row && moves.m1.end.column == moves.m2.end.column) {
-            audio.playMoveInvalid();
-            break;
-        }
-
+        if (sp.row==moves.m1.end.row&&sp.column==moves.m1.end.column) { moves.m1.end={-1,-1}; gameState=selectDest1; break; }
+        if (std::find(validMovePositions.begin(),validMovePositions.end(),sp)==validMovePositions.end()) { audio.playMoveInvalid(); break; }
+        if (!game.isEmpty(sp)&&!game.isSuperpositionSquare(sp)) { audio.playMoveInvalid(); break; }
+        moves.m2.end=sp;
+        if (moves.m1.end==moves.m2.end) { audio.playMoveInvalid(); break; }
         validMovePositions.clear();
         audio.playQuantumEnter();
-
-        if (game.hasActiveSuperposition()) {
-            game.clearSuperposition();
-        }
-
-        game.enterSuperposition(moves.m1.start, moves.m1.end, moves.m2.end,
-                                game.getPieceID(moves.m1.start), currentPlayer);
-
-        if (isNetworkGame()) {
-            sendQuantumMove();
-            return;
-        }
-
-        SquareColor opponent = (currentPlayer == White) ? Black : White;
-        currentPlayer = opponent;
-        gameState = opponentPickPiece;
-        if (gameMode == MODE_HOTSEAT) passClickRequired = true;
+        std::vector<Pos> nd = {moves.m1.end, moves.m2.end};
+        if (game.isSuperpositionOriginal(moves.m1.start)&&game.hasActiveSuperposition())
+            game.addSuperpositionPositions(nd);
+        else
+            game.enterSuperposition(moves.m1.start,nd,game.getPieceID(moves.m1.start),currentPlayer);
+        endTurn();
         break;
     }
 
-    case opponentPickPiece: {
-        if (game.isEmpty(squarePicked) || getPieceColor(game.getPieceID(squarePicked)) != currentPlayer) {
-            audio.playMoveInvalid();
-            break;
-        }
-        game.getPiecesMoves(squarePicked, validMovePositions);
-        if (validMovePositions.empty()) {
-            audio.playMoveInvalid();
-            break;
-        }
-        moves.m1.start = squarePicked;
-        audio.playButtonClick();
-        gameState = opponentPickDest;
-        break;
-    }
-
-    case opponentPickDest: {
-        if (!game.isEmpty(squarePicked) && getPieceColor(game.getPieceID(squarePicked)) == currentPlayer) {
-            game.getPiecesMoves(squarePicked, validMovePositions);
-            if (validMovePositions.empty()) break;
-            moves.m1.start = squarePicked;
-            audio.playButtonClick();
-            break;
-        }
-        moves.m1.end = squarePicked;
-        if (std::find(validMovePositions.begin(), validMovePositions.end(), moves.m1.end) == validMovePositions.end()) {
-            audio.playMoveInvalid();
-            break;
-        }
-
-        validMovePositions.clear();
-
-        if (game.isSuperpositionSquare(squarePicked)) {
-            bool wasCapture = !game.isEmpty(squarePicked);
-            Move attemptedMove = moves.m1;
-            audio.playQuantumCollapse();
-            Pos result = game.collapseSuperposition();
-
-            if (result.row == attemptedMove.end.row && result.column == attemptedMove.end.column) {
-                game.movePiece(attemptedMove);
-                lastMove = attemptedMove;
-                if (wasCapture) audio.playCapture(); else audio.playMove();
-            } else {
-                audio.playMiss();
-            }
-            captureMissed = !(result.row == attemptedMove.end.row && result.column == attemptedMove.end.column);
-
-            SquareColor nextPlayer = (currentPlayer == White) ? Black : White;
-            currentPlayer = nextPlayer;
-            bool wasCheck = game.isInCheck(currentPlayer);
-            checkGameEnd();
-            if (gameOver) audio.playCheckmate();
-            else if (wasCheck) audio.playCheck();
-
-            if (gameMode == MODE_HOTSEAT && !gameOver) passClickRequired = true;
-            gameState = selectPiece;
-            break;
-        }
-
-        {
-            bool wasCapture = !game.isEmpty(moves.m1.end);
-            game.movePiece(moves.m1);
-            lastMove = moves.m1;
-            if (wasCapture) audio.playCapture(); else audio.playMove();
-        }
-
-        SquareColor nextPlayer = (currentPlayer == White) ? Black : White;
-        currentPlayer = nextPlayer;
-
-        // No auto-collapse — superposition persists across turns
-
-        checkGameEnd();
-        if (gameOver) audio.playCheckmate();
-        else if (game.isInCheck(currentPlayer)) audio.playCheck();
-
-        if (gameMode == MODE_HOTSEAT && !gameOver) passClickRequired = true;
-        gameState = selectPiece;
-        break;
-    }
-
-    default:
-        break;
+    default: break;
     }
 }
 
 void Window::checkGameEnd() {
     if (game.isCheckmate(currentPlayer)) {
-        std::string winner = (currentPlayer == White) ? playerNameBlack : playerNameWhite;
-        gameOverMessage = "Checkmate! " + winner + " wins!";
-        gameOver = true;
+        gameOverMessage="Checkmate! "+((currentPlayer==White)?playerNameBlack:playerNameWhite)+" wins!";
+        gameOver=true;
     } else if (game.isStalemate(currentPlayer)) {
-        gameOverMessage = "Stalemate! It's a draw!";
-        gameOver = true;
+        gameOverMessage="Stalemate! It's a draw!";
+        gameOver=true;
     }
 }
 
 void Window::restartGame() {
-    game.resetBoard();
-    gameState = selectPiece;
-    currentPlayer = White;
-    gameOver = false;
-    gameOverMessage = "";
-    validMovePositions.clear();
-    moves = {};
-    lastMove = {{-1,-1}, {-1,-1}};
-    captureMissed = false;
-    passClickRequired = false;
-    waitingForOpponent = false;
-    quantumMode = true;
-    currentScreen = SCREEN_SETUP;
+    game.resetBoard(); gameState=selectPiece; currentPlayer=White; gameOver=false; gameOverMessage="";
+    validMovePositions.clear(); moves={}; lastMove={{-1,-1},{-1,-1}}; passClickRequired=false; waitingForOpponent=false;
+    quantumMode=true; currentScreen=SCREEN_SETUP;
 }
 
 void Window::drawSuperpositionGhosts() {
     if (!game.hasActiveSuperposition()) return;
-
-    const auto& sup = game.getSuperposition();
-    float squareSize = boardWidth / 8;
-
-    drawPiece(sup.pieceType, getSquarePosition(sup.originalPos), 0.3f);
-
-    Vector2 p1 = getSquarePosition(sup.pos1);
-    Vector2 p2 = getSquarePosition(sup.pos2);
-    float cx1 = p1.x + squareSize / 2;
-    float cy1 = p1.y + squareSize / 2;
-    float cx2 = p2.x + squareSize / 2;
-    float cy2 = p2.y + squareSize / 2;
-    DrawLineEx({cx1, cy1}, {cx2, cy2}, 3.0f, Fade(PURPLE, 0.5f));
-
-    highlightSquare(sup.pos1, Fade(PURPLE, 0.2f));
-    highlightSquare(sup.pos2, Fade(PURPLE, 0.2f));
-
-    drawPiece(sup.pieceType, getSquarePosition(sup.pos1), 0.4f);
-    drawPiece(sup.pieceType, getSquarePosition(sup.pos2), 0.4f);
-
+    auto& sup = game.getSuperposition();
+    float sq = boardWidth/8;
+    for (auto& p : sup.positions) {
+        drawPiece(sup.pieceType, getSquarePosition(p), 0.4f);
+        highlightSquare(p, Fade(PURPLE,0.2f));
+    }
+    for (size_t i=0; i<sup.positions.size(); ++i)
+        for (size_t j=i+1; j<sup.positions.size(); ++j) {
+            Vector2 a=getSquarePosition(sup.positions[i]), b=getSquarePosition(sup.positions[j]);
+            a.x+=sq/2; a.y+=sq/2; b.x+=sq/2; b.y+=sq/2;
+            DrawLineEx(a,b,3,Fade(PURPLE,0.5f));
+        }
     int prob = game.getSuperpositionProbability();
-    std::string pct = std::to_string(prob) + "%";
-    int fontSize = squareSize / 5;
-    if (fontSize < 14) fontSize = 14;
-
-    DrawText(pct.c_str(), (int)(cx1 - MeasureText(pct.c_str(), fontSize) / 2), (int)(cy1 - fontSize / 2), fontSize, WHITE);
-    DrawText(pct.c_str(), (int)(cx2 - MeasureText(pct.c_str(), fontSize) / 2), (int)(cy2 - fontSize / 2), fontSize, WHITE);
-}
-
-void Window::run(){
-    while(!WindowShouldClose()){
-        pollEvents();
-        render();
+    std::string pct = std::to_string(prob)+"%";
+    int fs = std::max(14,(int)(sq/5));
+    for (auto& p : sup.positions) {
+        Vector2 pos = getSquarePosition(p);
+        DrawText(pct.c_str(), (int)(pos.x+sq/2-MeasureText(pct.c_str(),fs)/2), (int)(pos.y+sq/2-fs/2), fs, WHITE);
     }
 }
 
-Pos Window::getSquare(Vector2 cursorPosition){
-    if (cursorPosition.x < boardStart.x || cursorPosition.x > boardEnd.x ||
-        cursorPosition.y < boardStart.y || cursorPosition.y > boardEnd.y)
-        return {-1, -1};
-    float squareSize = boardWidth / 8;
-    int column = (cursorPosition.x - boardStart.x) / squareSize;
-    int row = (cursorPosition.y - boardStart.y) / squareSize;
-    return {row, column};
+void Window::run(){ while(!WindowShouldClose()){ pollEvents(); render(); } }
+
+Pos Window::getSquare(Vector2 cp) {
+    if (cp.x<boardStart.x||cp.x>boardEnd.x||cp.y<boardStart.y||cp.y>boardEnd.y) return {-1,-1};
+    float sq=boardWidth/8;
+    return {(int)((cp.y-boardStart.y)/sq),(int)((cp.x-boardStart.x)/sq)};
 }
 
-Vector2 Window::getSquarePosition(Pos square){
-    float squareSize = boardWidth / 8;
-    return {boardStart.x + square.column * squareSize, boardStart.y + square.row * squareSize};
-}
+Vector2 Window::getSquarePosition(Pos s){ float sq=boardWidth/8; return {boardStart.x+s.column*sq,boardStart.y+s.row*sq}; }
 
-void Window::resizedWindow(){
-    screenWidth = GetScreenWidth(); screenHeight = GetScreenHeight(); updateBoard();
-}
+void Window::resizedWindow(){ screenWidth=GetScreenWidth(); screenHeight=GetScreenHeight(); updateBoard(); }
 
 void Window::updateBoard() {
-    int w = GetScreenWidth(); int h = GetScreenHeight();
-    boardWidth = ((w < h) ? w : h) * 0.95;
-    boardStart = {(float)(w - boardWidth) / 2, (float)(h - boardWidth) / 2};
-    boardEnd = {boardStart.x + boardWidth, boardStart.y + boardWidth};
+    int w=GetScreenWidth(), h=GetScreenHeight();
+    boardWidth=((w<h)?w:h)*0.95f;
+    boardStart={(float)(w-boardWidth)/2,(float)(h-boardWidth)/2};
+    boardEnd={boardStart.x+boardWidth,boardStart.y+boardWidth};
 }
 
-void Window::drawPiece(int pieceKey, Vector2 pos, float alpha){
-    float squareSize = boardWidth / 8;
-    Color tint = WHITE;
-    tint.a = static_cast<unsigned char>(alpha * 255);
-    DrawTexturePro(sprites[pieceKey], {0, 0, spriteWidth, spriteHeight},
-                   {pos.x, pos.y, squareSize, squareSize}, {0, 0}, 0.0f, tint);
+void Window::drawPiece(int p, Vector2 pos, float alpha){
+    float sq=boardWidth/8; Color t=WHITE; t.a=(unsigned char)(alpha*255);
+    DrawTexturePro(sprites[p],{0,0,spriteWidth,spriteHeight},{pos.x,pos.y,sq,sq},{0,0},0,t);
 }
 
-void Window::highlightSquare(Pos pos, Color color){
-    if (pos.row != -1 && pos.column != -1) {
-        float squareSize = boardWidth / 8;
-        DrawRectangleV(getSquarePosition(pos), {squareSize, squareSize}, Fade(color, 0.3f));
-    }
+void Window::highlightSquare(Pos p, Color c){
+    if(p.row==-1||p.column==-1) return; float sq=boardWidth/8;
+    DrawRectangleV(getSquarePosition(p),{sq,sq},Fade(c,0.3f));
 }
 
 void Window::loadSprites(){
     sprites.resize(12);
-    sprites[WPawn] = LoadTexture("../assets/wp.png");
-    sprites[WKnight] = LoadTexture("../assets/wn.png");
-    sprites[WBishop] = LoadTexture("../assets/wb.png");
-    sprites[WRook] = LoadTexture("../assets/wr.png");
-    sprites[WQueen] = LoadTexture("../assets/wq.png");
-    sprites[WKing] = LoadTexture("../assets/wk.png");
-    sprites[BPawn] = LoadTexture("../assets/bp.png");
-    sprites[BKnight] = LoadTexture("../assets/bn.png");
-    sprites[BBishop] = LoadTexture("../assets/bb.png");
-    sprites[BRook] = LoadTexture("../assets/br.png");
-    sprites[BQueen] = LoadTexture("../assets/bq.png");
-    sprites[BKing] = LoadTexture("../assets/bk.png");
+    sprites[WPawn]=LoadTexture("../assets/wp.png"); sprites[WKnight]=LoadTexture("../assets/wn.png");
+    sprites[WBishop]=LoadTexture("../assets/wb.png"); sprites[WRook]=LoadTexture("../assets/wr.png");
+    sprites[WQueen]=LoadTexture("../assets/wq.png"); sprites[WKing]=LoadTexture("../assets/wk.png");
+    sprites[BPawn]=LoadTexture("../assets/bp.png"); sprites[BKnight]=LoadTexture("../assets/bn.png");
+    sprites[BBishop]=LoadTexture("../assets/bb.png"); sprites[BRook]=LoadTexture("../assets/br.png");
+    sprites[BQueen]=LoadTexture("../assets/bq.png"); sprites[BKing]=LoadTexture("../assets/bk.png");
 }
