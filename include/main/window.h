@@ -3,10 +3,12 @@
 
 #include "board.h"
 #include "audio.h"
+#include "network.h"
 #include "raylib.h"
 #include <vector>
 #include <random>
 #include <string>
+#include <queue>
 
 enum Screen {
     SCREEN_TITLE,
@@ -16,7 +18,9 @@ enum Screen {
 
 enum GameMode {
     MODE_LOCAL,
-    MODE_HOTSEAT
+    MODE_HOTSEAT,
+    MODE_NETWORK_HOST,
+    MODE_NETWORK_CLIENT
 };
 
 class Window{
@@ -54,6 +58,12 @@ private:
     int nameInputActive = 0;
     bool passClickRequired = false;
 
+    NetworkManager net;
+    bool waitingForOpponent = false;
+    std::string networkStatus = "";
+    std::string ipInput = "127.0.0.1";
+    int ipInputActive = 0;
+
     AudioManager audio;
     std::mt19937 rng;
 
@@ -65,10 +75,12 @@ private:
     void renderSetupScreen();
     void renderPassOverlay();
     void renderGame();
+    void renderNetworkStatus();
     void pollEvents();
     void handleTitleClick();
     void handleSetupClick();
     void handleSetupKeyInput();
+    void processNetworkMessages();
     void resizedWindow();
     Vector2 getSquarePosition(Pos square);
     void drawPiece(int pieceKey, Vector2 pos, float alpha = 1.0f);
@@ -79,6 +91,12 @@ private:
     void startGame();
     void restartGame();
     void checkGameEnd();
+    bool isNetworkGame() const;
+    void sendCurrentMove();
+    void sendQuantumMove();
+    void applyRemoteQuantum(const NetMessage& msg);
+    void applyRemoteMove(const NetMessage& msg);
+    void applyRemoteCollapse(const NetMessage& msg);
 
 public:
     Window();
