@@ -18,6 +18,8 @@
 #include <functional>
 #include <stdexcept>
 #include <cstdlib>
+#include <random>
+#include <chrono>
 
 Board::Board(){
     resetBoard();
@@ -29,9 +31,24 @@ std::vector<std::pair<Pos, PieceID>> Board::getPieces() {
     for (int i = 0; i < 8; ++i){
         for (int j = 0; j < 8; ++j){
             if (pieces[i][j] != nullptr){
+                // Skip superposition original position (rendered separately as ghost)
+                if (superposition.active &&
+                    i == superposition.originalPos.row &&
+                    j == superposition.originalPos.column)
+                    continue;
                 pieceList.push_back(std::make_pair<Pos, PieceID>(pieces[i][j].get()->getPosition(), pieces[i][j].get()->getType()));
             }
         }
+    }
+    return pieceList;
+}
+
+std::vector<std::pair<Pos, PieceID>> Board::getAllVisiblePieces() {
+    std::vector<std::pair<Pos, PieceID>> pieceList = getPieces();
+    // Add superposition ghost copies
+    if (superposition.active) {
+        pieceList.push_back({superposition.pos1, superposition.pieceType});
+        pieceList.push_back({superposition.pos2, superposition.pieceType});
     }
     return pieceList;
 }
@@ -45,6 +62,7 @@ std::unique_ptr<Piece>& Board::getPiece(Pos pos) {
 
 void Board::resetBoard(){
     enPassantTarget = {-1, -1};
+    superposition.active = false;
     for (int i = 0; i < 8; ++i){
         for (int j = 0; j < 8; ++j){
             SquareColor color = (i == 7 || i == 6) ? Black : White;
@@ -143,15 +161,43 @@ void Board::movePiece(Move move) {
 PieceID Board::getPieceID(Pos square){
     if (square.row < 0 || square.row >= 8 || square.column < 0 || square.column >= 8)
         return InvalidPiece;
-    if (pieces[square.row][square.column] == nullptr)
-        return InvalidPiece;
-    return pieces[square.row][square.column]->getType();
+    // During superposition, the original square has no targetable piece
+    if (pieces[square.row][square.column] != nullptr) {
+        if (superposition.active &&
+            square.row == superposition.originalPos.row &&
+            square.column == superposition.originalPos.column)
+            return InvalidPiece;
+        return pieces[square.row][square.column]->getType();
+    }
+    // Check superposition ghost squares
+    if (superposition.active) {
+        if (square.row == superposition.pos1.row && square.column == superposition.pos1.column)
+            return superposition.pieceType;
+        if (square.row == superposition.pos2.row && square.column == superposition.pos2.column)
+            return superposition.pieceType;
+    }
+    return InvalidPiece;
 }
 
 bool Board::isEmpty(Pos pos) {
     if (pos.row < 0 || pos.row >= 8 || pos.column < 0 || pos.column >= 8)
         return false;
-    return pieces[pos.row][pos.column] == nullptr;
+    if (pieces[pos.row][pos.column] != nullptr) {
+        // During superposition, the original position is treated as empty
+        // (piece exists only as a ghost at pos1/pos2)
+        if (superposition.active &&
+            pos.row == superposition.originalPos.row &&
+            pos.column == superposition.originalPos.column)
+            return true;
+        return false;
+    }
+    // Superposition ghost squares count as occupied (block movement through them)
+    if (superposition.active) {
+        if ((pos.row == superposition.pos1.row && pos.column == superposition.pos1.column) ||
+            (pos.row == superposition.pos2.row && pos.column == superposition.pos2.column))
+            return false;
+    }
+    return true;
 }
 
 std::vector<Pos> Board::getRawPieceMoves(Pos piecePos) {
@@ -361,4 +407,51 @@ bool Board::canCastleQueenSide(Pos kingPos, SquareColor color) {
     if (isSquareAttacked({row, 3}, (color == White) ? Black : White)) return false;
 
     return true;
+}
+
+void Board::enterSuperposition(Pos original, Pos dest1, Pos dest2, PieceID type, SquareColor color) {
+    superposition.active = true;
+    superposition.originalPos = original;
+    superposition.pos1 = dest1;
+    superposition.pos2 = dest2;
+    superposition.pieceType = type;
+    superposition.color = color;
+}
+
+Pos Board::collapseSuperposition() {
+    if (!superposition.active) return {-1, -1};
+
+    static std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
+    std::uniform_int_distribution<int> dist(0, 1);
+    Pos chosen = (dist(rng) == 0) ? superposition.pos1 : superposition.pos2;
+
+    // Physically move the piece from original to chosen position
+    Move move = {superposition.originalPos, chosen};
+    movePiece(move);
+
+    superposition.active = false;
+    return chosen;
+}
+
+bool Board::hasActiveSuperposition() const {
+    return superposition.active;
+}
+
+const SuperpositionState& Board::getSuperposition() const {
+    return superposition;
+}
+
+void Board::clearSuperposition() {
+    superposition.active = false;
+}
+
+bool Board::isSuperpositionSquare(Pos pos) const {
+    if (!superposition.active) return false;
+    return (pos.row == superposition.pos1.row && pos.column == superposition.pos1.column) ||
+           (pos.row == superposition.pos2.row && pos.column == superposition.pos2.column);
+}
+
+bool Board::isSuperpositionOriginal(Pos pos) const {
+    if (!superposition.active) return false;
+    return pos.row == superposition.originalPos.row && pos.column == superposition.originalPos.column;
 }

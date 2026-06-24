@@ -20,6 +20,8 @@ private:
 
     Pos enPassantTarget = {-1, -1};
 
+    SuperpositionState superposition;
+
     // returns a reference to the piece at the given position
     std::unique_ptr<Piece>& getPiece(Pos pos);
 
@@ -36,11 +38,14 @@ public:
     // Returns a list of pieces on the Board. Stores position and type of each piece
     std::vector<std::pair<Pos, PieceID>> getPieces();
 
+    // Returns pieces including superposition ghost positions
+    std::vector<std::pair<Pos, PieceID>> getAllVisiblePieces();
+
     PieceID getPieceID(Pos square);
 
     void movePiece(Move move);
 
-    // Checks if the square on board is empty
+    // Checks if the square on board is empty (considering superposition as occupied)
     bool isEmpty(Pos pos);
 
     // Check if the given color's king is in check
@@ -67,6 +72,15 @@ public:
 
     // Check if the given color is in stalemate
     bool isStalemate(SquareColor color);
+
+    // Superposition methods
+    void enterSuperposition(Pos original, Pos dest1, Pos dest2, PieceID type, SquareColor color);
+    Pos collapseSuperposition();
+    bool hasActiveSuperposition() const;
+    const SuperpositionState& getSuperposition() const;
+    void clearSuperposition();
+    bool isSuperpositionSquare(Pos pos) const;
+    bool isSuperpositionOriginal(Pos pos) const;
 };
 
 #endif

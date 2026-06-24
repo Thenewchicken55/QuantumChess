@@ -25,15 +25,6 @@ enum PieceID{
 
 SquareColor getPieceColor(PieceID ID);
 
-enum States {
-    pickPieceFirst,
-    pickSquareFirst,
-    pickPieceSecond,
-    pickSquareSecond,
-    movePieces,
-    waitingForOpponent
-};
-
 struct Pos{
     int row;
     int column;
@@ -55,6 +46,26 @@ struct Move{
 struct MovePair{
     Move m1;
     Move m2;
+};
+
+struct SuperpositionState {
+    bool active = false;
+    Pos originalPos;
+    Pos pos1;
+    Pos pos2;
+    PieceID pieceType = InvalidPiece;
+    SquareColor color = InvalidColor;
+};
+
+enum States {
+    quantumPickFirst,
+    quantumPickDest1,
+    quantumPickSecond,
+    quantumPickDest2,
+    opponentPickPiece,
+    opponentPickDest,
+    superpositionResolve,
+    gameEnded
 };
 
 #endif

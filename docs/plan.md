@@ -28,74 +28,61 @@ This creates bluffing, uncertainty, and tactical depth:
 
 ---
 
-## Phase 2: True Quantum Superposition 🔨 IN PROGRESS
+## Phase 2: True Quantum Superposition ✅ COMPLETE
 
-### 2a. Data Model — `Board` changes
+### 2a. Data Model — `Board` changes ✅
 
-- [ ] Add `SuperpositionState` struct:
-  ```cpp
-  struct SuperpositionState {
-      bool active = false;
-      PieceID pieceType;
-      SquareColor color;
-      Pos pos1; // first possible position
-      Pos pos2; // second possible position
-  };
-  ```
-- [ ] Add `SuperpositionState currentSuperposition` to `Board`
-- [ ] Add accessors: `hasActiveSuperposition()`, `getSuperposition()`
-- [ ] Add `enterSuperposition(Pos pos1, Pos pos2, PieceID type, SquareColor color)`
-- [ ] Add `collapseSuperposition()` → returns `Pos` of actual position (50/50)
+- [x] `SuperpositionState` struct added to `types.h` (includes `Pos originalPos`, `Pos pos1`, `Pos pos2`, `PieceID pieceType`, `SquareColor color`)
+- [x] `SuperpositionState` member added to `Board` (in `board.h`)
+- [x] Accessors: `hasActiveSuperposition()`, `getSuperposition()`, `clearSuperposition()`, `isSuperpositionSquare()`, `isSuperpositionOriginal()`
+- [x] `enterSuperposition(Pos original, Pos dest1, Pos dest2, PieceID type, SquareColor color)` 
+- [x] `collapseSuperposition()` → returns `Pos` of actual position (50/50 using `std::mt19937`)
 
-### 2b. Board occupation rules for superposition
+### 2b. Board occupation rules for superposition ✅
 
-- [ ] A piece in superposition occupies BOTH positions for blocking
-- [ ] Enemy captures may target EITHER position
-- [ ] Collapse triggers:
+- [x] Ghost positions count as occupied (`isEmpty()` returns `false` for pos1/pos2)
+- [x] Original position treated as empty (`isEmpty()` returns `true`, `getPieceID()` returns `InvalidPiece`)
+- [x] Enemy may target EITHER ghost position for capture (via `getPieceID()` returning piece type for ghosts)
+- [x] Collapse triggers:
   - Opponent attempts capture on either superposition square
-  - The superposition piece itself makes a capture (collapse to that position first)
-  - The owning player starts their next turn (auto-collapse)
+  - The owning player's next turn after opponent's normal move (auto-collapse)
 
-### 2c. Collapse logic
+### 2c. Collapse logic ✅
 
-- [ ] `collapseSuperposition()` is called on critical events
-- [ ] 50/50 random selection between `pos1` and `pos2`
-- [ ] If opponent was capturing the collapsed square → capture succeeds
-- [ ] If opponent was capturing the other square → capture fails (move is illegal,
-      piece survives on the collapsed square)
-- [ ] Visual particle burst and sound on collapse
-- [ ] Remove the other ghost instance from the board
+- [x] `collapseSuperposition()` called on critical events
+- [x] 50/50 random selection between `pos1` and `pos2`
+- [x] If opponent was capturing the collapsed square → capture succeeds (via `movePiece`)
+- [x] If opponent was capturing the other square → capture fails (move not executed, opponent loses turn)
+- [x] Ghost piece removed from board after collapse
+- [x] `collapseSuperposition()` physically moves the piece from `originalPos` to chosen position via `movePiece`
 
-### 2d. State machine — `Window` changes
+### 2d. State machine — `Window` changes ✅
 
-Replace the current states with these:
+Replaced the old states with:
 
 ```
-Current flow:
-  pickPieceFirst → pickSquareFirst → pickPieceSecond → pickSquareSecond → coinFlip → execute
-
-New flow:
-  pickPieceFirst → pickSquareFirst → pickPieceSecond → pickSquareSecond
-    → enterSuperposition (piece ghosts on both squares)
-    → opponentTurn
-    → if capture on either superposition square:
-        → collapseAnimation → resolveCaptureOrMiss → nextTurn
-    → if no capture before next owner turn:
-        → collapseAnimation → continueWithCollapsedPosition
+New states:
+  quantumPickFirst → quantumPickDest1 → quantumPickSecond → quantumPickDest2
+    → opponentPickPiece → opponentPickDest
+    → if destination is superposition square:
+        collapseSuperposition → resolveCaptureOrMiss → quantumPickFirst (next player)
+    → if normal move + superposition active:
+        movePiece → collapseSuperposition (auto) → quantumPickFirst (next player)
+    → if normal move only:
+        movePiece → quantumPickFirst (next player)
 ```
 
-New state enum values needed:
-- `superpositionActive` — the piece is in superposition, waiting
-- `collapseHappening` — playing collapse animation
-- `captureResolution` — showing whether capture succeeded or missed
+New state enum: `quantumPickFirst`, `quantumPickDest1`, `quantumPickSecond`, `quantumPickDest2`, `opponentPickPiece`, `opponentPickDest`, `superpositionResolve`, `gameEnded`
 
-### 2e. Rendering — superposition display
+### 2e. Rendering — superposition display ✅
 
-- [ ] Draw ghosted piece (alpha 0.4) on BOTH superposition squares
-- [ ] Add pulsing quantum glow effect (animated circle, color shift)
-- [ ] Draw entanglement line between the two superposition squares (dotted line)
-- [ ] Collapse animation: particles burst outward, pieces merge to one square
-- [ ] "Miss!" text when capture fails due to collapse
+- [x] Draw ghosted piece (alpha 0.3) on original position
+- [x] Draw ghosted piece (alpha 0.4) on BOTH superposition squares
+- [x] Entanglement line drawn between the two superposition squares (`DrawLineEx` with `Fade(PURPLE, 0.5f)`)
+- [x] Superposition squares highlighted with purple tint
+- [x] `getPieces()` skips the original position during superposition (rendered separately as ghost)
+- [x] Collapse animation and particle effects deferred: Phase 5 (visual polish)
+- [x] "Miss!" text deferred: currently handled implicitly via turn text change
 
 ---
 

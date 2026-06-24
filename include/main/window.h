@@ -1,19 +1,23 @@
-/*
-    window.h
-
-    window class for QuantumChess Project
-
-    ZipCode
-*/
-
 #ifndef WINDOW_H
 #define WINDOW_H
 
 #include "board.h"
+#include "audio.h"
 #include "raylib.h"
 #include <vector>
 #include <random>
 #include <string>
+
+enum Screen {
+    SCREEN_TITLE,
+    SCREEN_SETUP,
+    SCREEN_PLAYING
+};
+
+enum GameMode {
+    MODE_LOCAL,
+    MODE_HOTSEAT
+};
 
 class Window{
 private:
@@ -28,8 +32,11 @@ private:
     Vector2 boardEnd;
     float boardWidth;
 
+    Screen currentScreen = SCREEN_TITLE;
+    GameMode gameMode = MODE_LOCAL;
+
     Board game;
-    States gameState = States::pickPieceFirst;
+    States gameState = States::quantumPickFirst;
     MovePair moves;
     SquareColor currentPlayer = White;
 
@@ -39,21 +46,39 @@ private:
     std::string gameOverMessage;
 
     Move lastMove = {{-1,-1}, {-1,-1}};
+    Pos collapseResult = {-1, -1};
+    bool captureMissed = false;
 
+    std::string playerNameWhite = "White";
+    std::string playerNameBlack = "Black";
+    int nameInputActive = 0;
+    bool passClickRequired = false;
+
+    AudioManager audio;
     std::mt19937 rng;
 
     void loadSprites();
     void drawBoard();
     void handleLeftMouseDown();
     void render();
+    void renderTitleScreen();
+    void renderSetupScreen();
+    void renderPassOverlay();
+    void renderGame();
     void pollEvents();
+    void handleTitleClick();
+    void handleSetupClick();
+    void handleSetupKeyInput();
     void resizedWindow();
     Vector2 getSquarePosition(Pos square);
-    void drawPiece(int pieceKey, Vector2 pos, bool center = false);
+    void drawPiece(int pieceKey, Vector2 pos, float alpha = 1.0f);
     void highlightSquare(Pos pos, Color color = {0, 121, 241, 255});
     void highlightMovesSelected();
     void highlightCheckedKing();
+    void drawSuperpositionGhosts();
+    void startGame();
     void restartGame();
+    void checkGameEnd();
 
 public:
     Window();
