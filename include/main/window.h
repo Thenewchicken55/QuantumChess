@@ -50,7 +50,7 @@ private:
     void resizedWindow();
     Vector2 getSquarePosition(Pos square);
     void drawPiece(int pieceKey, Vector2 pos, bool center = false);
-    void highlightSquare(Pos pos, Color color = BLUE);
+    void highlightSquare(Pos pos, Color color = {0, 121, 241, 255});
     void highlightMovesSelected();
     void highlightCheckedKing();
     void restartGame();

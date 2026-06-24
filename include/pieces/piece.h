@@ -25,6 +25,7 @@ protected:
 
 public:
     Piece(SquareColor color, Pos pos, Board *board);
+    virtual ~Piece() = default;
 
     Pos getPosition() const;
 

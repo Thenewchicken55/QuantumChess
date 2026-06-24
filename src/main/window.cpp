@@ -202,7 +202,7 @@ void Window::handleLeftMouseDown(){
         gameState = pickSquareSecond;
         break;
 
-    case pickSquareSecond:
+    case pickSquareSecond: {
         moves.m2.end = squarePicked;
         if (std::find(validMovePositions.begin(), validMovePositions.end(), moves.m2.end) == validMovePositions.end())
             break;
@@ -227,7 +227,6 @@ void Window::handleLeftMouseDown(){
         else
             currentPlayer = White;
 
-        // Check for game over
         if (game.isCheckmate(currentPlayer)) {
             std::string winner = (currentPlayer == White) ? "Black" : "White";
             gameOverMessage = "Checkmate! " + winner + " wins!";
@@ -239,6 +238,7 @@ void Window::handleLeftMouseDown(){
 
         validMovePositions.clear();
         break;
+    }
 
     default:
         break;
