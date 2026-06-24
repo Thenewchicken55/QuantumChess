@@ -528,6 +528,16 @@ void Window::handleLeftMouseDown(){
             }
         }
         game.getPiecesMoves(squarePicked, validMovePositions);
+
+        // When re-entering superposition, add current ghost positions as valid moves
+        if (game.isSuperpositionOriginal(squarePicked) && game.hasActiveSuperposition()) {
+            const auto& sup = game.getSuperposition();
+            if (std::find(validMovePositions.begin(), validMovePositions.end(), sup.pos1) == validMovePositions.end())
+                validMovePositions.push_back(sup.pos1);
+            if (std::find(validMovePositions.begin(), validMovePositions.end(), sup.pos2) == validMovePositions.end())
+                validMovePositions.push_back(sup.pos2);
+        }
+
         if (validMovePositions.empty()) {
             audio.playMoveInvalid();
             validMovePositions.clear();
@@ -559,7 +569,7 @@ void Window::handleLeftMouseDown(){
             audio.playMoveInvalid();
             break;
         }
-        if (!game.isEmpty(squarePicked)) {
+        if (!game.isEmpty(squarePicked) && !game.isSuperpositionSquare(squarePicked)) {
             audio.playMoveInvalid();
             break;
         }
@@ -569,10 +579,18 @@ void Window::handleLeftMouseDown(){
             gameState = selectDest2;
         } else {
             validMovePositions.clear();
-            bool wasCapture = !game.isEmpty(moves.m1.end);
-            game.movePiece(moves.m1);
-            lastMove = moves.m1;
-            if (wasCapture) audio.playCapture(); else audio.playMove();
+
+            if (game.isSuperpositionSquare(moves.m1.end) && game.hasActiveSuperposition()) {
+                audio.playQuantumCollapse();
+                game.collapseToPosition(moves.m1.end);
+                lastMove = moves.m1;
+            } else {
+                bool wasCapture = !game.isEmpty(moves.m1.end);
+                game.movePiece(moves.m1);
+                lastMove = moves.m1;
+                if (wasCapture) audio.playCapture(); else audio.playMove();
+            }
+
             SquareColor next = (currentPlayer == White) ? Black : White;
             currentPlayer = next;
             checkGameEnd();
@@ -597,7 +615,7 @@ void Window::handleLeftMouseDown(){
             audio.playMoveInvalid();
             break;
         }
-        if (!game.isEmpty(squarePicked)) {
+        if (!game.isEmpty(squarePicked) && !game.isSuperpositionSquare(squarePicked)) {
             audio.playMoveInvalid();
             break;
         }
