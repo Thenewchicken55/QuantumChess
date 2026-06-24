@@ -414,8 +414,21 @@ void Board::enterSuperposition(Pos original, Pos dest1, Pos dest2, PieceID type,
     superposition.originalPos = original;
     superposition.pos1 = dest1;
     superposition.pos2 = dest2;
+    superposition.numPositions = 2;
     superposition.pieceType = type;
     superposition.color = color;
+}
+
+void Board::collapseToPosition(Pos pos) {
+    if (!superposition.active) return;
+    Move move = {superposition.originalPos, pos};
+    movePiece(move);
+    superposition.active = false;
+}
+
+int Board::getSuperpositionProbability() const {
+    if (!superposition.active || superposition.numPositions == 0) return 0;
+    return 100 / superposition.numPositions;
 }
 
 Pos Board::collapseSuperposition() {

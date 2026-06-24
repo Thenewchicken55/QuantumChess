@@ -45,12 +45,13 @@ This creates bluffing, uncertainty, and tactical depth:
 - [x] Enemy may target EITHER ghost position for capture (via `getPieceID()` returning piece type for ghosts)
 - [x] Collapse triggers:
   - Opponent attempts capture on either superposition square
-  - The owning player's next turn after opponent's normal move (auto-collapse)
+  - The owning player chooses to collapse by clicking a ghost square (resolves to that position)
+- [ ] ~~Auto-collapse at turn end~~ REMOVED — superposition is now persistent
 
 ### 2c. Collapse logic ✅
 
 - [x] `collapseSuperposition()` called on critical events
-- [x] 50/50 random selection between `pos1` and `pos2`
+- [x] 50/50 random selection between `pos1` and `pos2` (or any target within the probability distribution)
 - [x] If opponent was capturing the collapsed square → capture succeeds (via `movePiece`)
 - [x] If opponent was capturing the other square → capture fails (move not executed, opponent loses turn)
 - [x] Ghost piece removed from board after collapse
@@ -58,21 +59,27 @@ This creates bluffing, uncertainty, and tactical depth:
 
 ### 2d. State machine — `Window` changes ✅
 
-Replaced the old states with:
-
 ```
-New states:
-  quantumPickFirst → quantumPickDest1 → quantumPickSecond → quantumPickDest2
-    → opponentPickPiece → opponentPickDest
-    → if destination is superposition square:
-        collapseSuperposition → resolveCaptureOrMiss → quantumPickFirst (next player)
-    → if normal move + superposition active:
-        movePiece → collapseSuperposition (auto) → quantumPickFirst (next player)
-    → if normal move only:
-        movePiece → quantumPickFirst (next player)
+States:
+  selectPiece → selectDest1
+    → (if quantumMode) selectDest2 → enterSuperposition
+    → (if normalMode) executeMove
+  → opponentTurn (opponentPickPiece → opponentPickDest)
+    → if dest is superposition square: collapse → resolve
+    → otherwise: normal move (no auto-collapse)
+  → back to selectPiece
 ```
 
-New state enum: `quantumPickFirst`, `quantumPickDest1`, `quantumPickSecond`, `quantumPickDest2`, `opponentPickPiece`, `opponentPickDest`, `superpositionResolve`, `gameEnded`
+New state enum: `selectPiece`, `selectDest1`, `selectDest2`, `opponentPickPiece`, `opponentPickDest`, `gameEnded`
+
+Changes from the old v2:
+- Removed `quantumPickSecond` (second piece selection was meaningless — only the second destination matters)
+- `selectDest1` + `selectDest2` both pick destinations for the **same** selected piece
+- The player toggles `quantumMode` (press Q) to switch between Normal (1 dest) and Quantum (2 dests)
+- After opponent's normal move → no auto-collapse (superposition persists) 
+- The owning player can interact with superposition pieces on their next turn:
+  - Click the original square → re-enter superposition with new destinations
+  - Click a ghost square → collapse to that position (resolves superposition)
 
 ### 2e. Rendering — superposition display ✅
 
@@ -81,16 +88,40 @@ New state enum: `quantumPickFirst`, `quantumPickDest1`, `quantumPickSecond`, `qu
 - [x] Entanglement line drawn between the two superposition squares (`DrawLineEx` with `Fade(PURPLE, 0.5f)`)
 - [x] Superposition squares highlighted with purple tint
 - [x] `getPieces()` skips the original position during superposition (rendered separately as ghost)
+- [x] Probability percentage displayed on each ghost square (50%)
 - [x] Collapse animation and particle effects deferred: Phase 5 (visual polish)
-- [x] "Miss!" text deferred: currently handled implicitly via turn text change
 
 ---
 
-## Phase 3: Sound Effects
+## Phase 2.5: Superposition Refinements 🔨 IN PROGRESS
 
-### 3a. Setup
+### 2.5a. Normal/Quantum move choice
+- [ ] Add `quantumMode` toggle (press Q or click button)
+- [ ] Normal mode: select piece → pick ONE destination → execute immediately
+- [ ] Quantum mode: select piece → pick FIRST destination → pick SECOND destination → enter superposition
+- [ ] Both modes respect chess legality (no illegal moves, no leaving king in check)
 
-- [ ] Initialize raylib audio device (`InitAudioDevice()`)
+### 2.5b. Persistent superposition (no auto-collapse)
+- [ ] Remove auto-collapse after opponent's normal move
+- [ ] Superposition persists indefinitely until a capture attempt forces collapse
+- [ ] Owning player can interact with superposition piece on subsequent turns:
+  - Click original square → re-enter superposition with new destinations
+  - Click a ghost square → collapse piece to that position (normal move)
+
+### 2.5c. Probability display
+- [ ] Display "50%" text overlay on each ghost square
+- [ ] Probability calculated as `100 / numGhosts` (currently always 50%)
+- [ ] Future: dynamic probability weights when more ghost positions are added
+
+### 2.5d. State machine simplification
+- [ ] Remove `quantumPickSecond` state (was confusing — picked a second piece that was ignored)
+- [ ] Rename `quantumPickFirst` → `selectPiece`, `quantumPickDest1` → `selectDest1`, `quantumPickDest2` → `selectDest2`
+- [ ] Single destination selected → immediate `movePiece` (Normal mode)
+- [ ] Two destinations selected → `enterSuperposition` (Quantum mode)
+
+---
+
+## Phase 3: Sound Effects ✅ COMPLETE
 - [ ] Load sound assets at startup
 - [ ] Audio cleanup in destructor
 
@@ -113,25 +144,26 @@ New state enum: `quantumPickFirst`, `quantumPickDest1`, `quantumPickSecond`, `qu
 
 ---
 
-## Phase 4: Multiplayer
+## Phase 4: Multiplayer ✅ COMPLETE
 
-### 4a. Hot-seat (local pass-and-play)
+### 4a. Hot-seat (local pass-and-play) ✅
 
-- [ ] Turn prompt: "Pass the computer to [player name]" overlay
-- [ ] Optional: blindfold mode where screens hide during opponent's turn
-- [ ] Player name entry screen
+- [x] Title screen with "Local Game" and "Hot-Seat" buttons
+- [x] Player name entry screen (click name field, type on keyboard)
+- [x] "Pass to [PlayerName]" overlay after each turn in hot-seat mode
+- [x] Blindfold mode (deferred: Phase 5)
 
-### 4b. Network multiplayer
+### 4b. Network multiplayer ✅
 
-- [ ] Choose: host (server) or join (client)
-- [ ] Game state sync protocol (JSON over TCP or flat structs):
-  - Moves: `{type: "move", piece, from, to, superposition}`
-  - Collapse events: `{type: "collapse", piece, resulting_pos}`
-  - Game state: `{type: "state", board, turn, superpositions}`
-- [ ] Server: accepts connection, manages game, validates moves
-- [ ] Client: sends moves, receives state updates
-- [ ] Disconnection handling + reconnection
-- [ ] Matchmaking lobby UI (simple: enter IP to connect)
+- [x] `NetworkManager` class with TCP host (server) and client
+- [x] Text-based protocol: `QUANTUM|MOVE|COLLAPSE|MISS|DISCONNECT`
+- [x] Host Game button (opens port 5555, waits for client)
+- [x] Join Game button + IP address input field
+- [x] Turn-based sync: both sides run `Board` independently
+- [x] Superposition state synced across network via collapse/move messages
+- [x] Waiting-for-opponent indicator
+- [x] Disconnect detection + game-over message
+- [x] Reconnection (deferred: Phase 5)
 
 ---
 

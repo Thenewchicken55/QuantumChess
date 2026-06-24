@@ -76,11 +76,13 @@ public:
     // Superposition methods
     void enterSuperposition(Pos original, Pos dest1, Pos dest2, PieceID type, SquareColor color);
     Pos collapseSuperposition();
+    void collapseToPosition(Pos pos);
     bool hasActiveSuperposition() const;
     const SuperpositionState& getSuperposition() const;
     void clearSuperposition();
     bool isSuperpositionSquare(Pos pos) const;
     bool isSuperpositionOriginal(Pos pos) const;
+    int getSuperpositionProbability() const;
 };
 
 #endif

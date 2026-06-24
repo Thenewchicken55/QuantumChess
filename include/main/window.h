@@ -40,9 +40,10 @@ private:
     GameMode gameMode = MODE_LOCAL;
 
     Board game;
-    States gameState = States::quantumPickFirst;
+    States gameState = States::selectPiece;
     MovePair moves;
     SquareColor currentPlayer = White;
+    bool quantumMode = true;
 
     std::vector<Pos> validMovePositions;
 

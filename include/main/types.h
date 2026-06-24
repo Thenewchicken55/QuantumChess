@@ -53,18 +53,17 @@ struct SuperpositionState {
     Pos originalPos;
     Pos pos1;
     Pos pos2;
+    int numPositions = 0;
     PieceID pieceType = InvalidPiece;
     SquareColor color = InvalidColor;
 };
 
 enum States {
-    quantumPickFirst,
-    quantumPickDest1,
-    quantumPickSecond,
-    quantumPickDest2,
+    selectPiece,
+    selectDest1,
+    selectDest2,
     opponentPickPiece,
     opponentPickDest,
-    superpositionResolve,
     gameEnded
 };
 
