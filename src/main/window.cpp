@@ -23,6 +23,8 @@ Window::Window()
     if (screenWidth > mw) screenWidth = mw * 4 / 5;
     if (screenHeight > mh) screenHeight = mh * 4 / 5;
     SetWindowSize(screenWidth, screenHeight);
+    InitAudioDevice();
+    audio.init();
     updateBoard();
     loadSprites();
 }
@@ -31,6 +33,7 @@ Window::~Window(){
     net.disconnect();
     for (auto& cur : sprites)
         if (cur.id != 0) UnloadTexture(cur);
+    CloseAudioDevice();
     CloseWindow();
 }
 

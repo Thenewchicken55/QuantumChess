@@ -3,8 +3,9 @@
 
 const std::string ASSET_PREFIX = "../assets/";
 
-AudioManager::AudioManager() {
-    InitAudioDevice();
+AudioManager::AudioManager() {}
+
+void AudioManager::init() {
     moveSound = loadSound((ASSET_PREFIX + "move.wav").c_str());
     captureSound = loadSound((ASSET_PREFIX + "capture.wav").c_str());
     quantumEnterSound = loadSound((ASSET_PREFIX + "quantum_enter.wav").c_str());
@@ -26,7 +27,6 @@ AudioManager::~AudioManager() {
     UnloadSound(missSound);
     UnloadSound(buttonClickSound);
     UnloadSound(moveInvalidSound);
-    CloseAudioDevice();
 }
 
 Sound AudioManager::loadSound(const char* path) {

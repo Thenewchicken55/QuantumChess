@@ -20,6 +20,7 @@ class AudioManager {
 public:
     AudioManager();
     ~AudioManager();
+    void init();
 
     void playMove();
     void playCapture();
