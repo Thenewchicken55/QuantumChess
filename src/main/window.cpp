@@ -68,7 +68,7 @@ void Window::renderTitleScreen() {
     int w=GetScreenWidth(), h=GetScreenHeight();
     DrawText("Quantum Chess", w/2-MeasureText("Quantum Chess",60)/2, h/4, 60, DARKGRAY);
     const int BW=220, BH=50, NBTN=4;
-    Vector2 mp = GetMousePosition();
+    Vector2 mp = getMouse();
     Rectangle r[NBTN];
     int ys[NBTN] = {-80, -10, 60, 130};
     for (int i=0;i<NBTN;i++) r[i]={(float)(w/2-BW/2),(float)(h/2-BH/2+ys[i]),(float)BW,(float)BH};
@@ -80,8 +80,16 @@ void Window::renderTitleScreen() {
         DrawText(labels[i], (int)(r[i].x+(BW-MeasureText(labels[i],28))/2), (int)(r[i].y+11), 28, WHITE);
         DrawText(keys[i], (int)(r[i].x+8), (int)(r[i].y+10), 22, Fade(WHITE,0.6f));
     }
-    std::string dbg = "Mouse "+std::to_string((int)mp.x)+","+std::to_string((int)mp.y)+" | "+std::to_string(w)+"x"+std::to_string(h)+" | "+std::to_string(GetFPS())+" FPS";
-    DrawText(dbg.c_str(),10,h-22,14,GRAY);
+    Vector2 scl = GetWindowScaleDPI();
+    Vector2 rw = {(float)GetRenderWidth(), (float)GetRenderHeight()};
+    Vector2 raw = GetMousePosition();
+    std::string dbg = "Raw "+std::to_string((int)raw.x)+","+std::to_string((int)raw.y)
+        +" | Scaled "+std::to_string((int)mp.x)+","+std::to_string((int)mp.y)
+        +" | Win "+std::to_string(w)+"x"+std::to_string(h)
+        +" | Scale "+std::to_string(scl.x).substr(0,4)+","+std::to_string(scl.y).substr(0,4)
+        +" | Render "+std::to_string((int)rw.x)+"x"+std::to_string((int)rw.y);
+    DrawText(dbg.c_str(),10,h-50,14,GRAY);
+    DrawText((std::to_string(GetFPS())+" FPS").c_str(),10,h-30,14,GRAY);
     if (net.getRole()==NetworkRole::Host) {
         DrawText("Hosting port 5555...", w/2-120, h/2+200,18,DARKGRAY);
         if (net.isConnected()) DrawText("Opponent connected!", w/2-110, h/2+230,20,GREEN);
@@ -142,7 +150,7 @@ void Window::renderGame() {
     for (auto cur : game.getPieces())
         drawPiece(cur.second, getSquarePosition(cur.first));
     drawSuperpositionGhosts();
-    highlightSquare(getSquare(GetMousePosition()));
+        highlightSquare(getSquare(getMouse()));
     highlightMovesSelected();
     highlightCheckedKing();
 
@@ -173,8 +181,16 @@ void Window::render() {
     else renderGame();
 }
 
-void Window::handleTitleClick() {
+Vector2 Window::getMouse() {
     Vector2 m = GetMousePosition();
+    Vector2 s = GetWindowScaleDPI();
+    if (s.x > 0) m.x /= s.x;
+    if (s.y > 0) m.y /= s.y;
+    return m;
+}
+
+void Window::handleTitleClick() {
+    Vector2 m = getMouse();
     int w=GetScreenWidth(), h=GetScreenHeight();
     const int BW=220, BH=50, NBTN=4;
     int ys[NBTN] = {-80, -10, 60, 130};
@@ -192,7 +208,7 @@ void Window::handleTitleClick() {
 }
 
 void Window::handleSetupClick() {
-    Vector2 m = GetMousePosition();
+    Vector2 m = getMouse();
     int w=GetScreenWidth(), h=GetScreenHeight();
     Rectangle bb={(float)(w/2-110),(float)(h-90),220,50};
     if (isInside(m,bb)) { currentScreen=SCREEN_TITLE; audio.playButtonClick(); return; }
@@ -299,7 +315,7 @@ void Window::processNetworkMessages() {
 
 void Window::handleLeftMouseDown() {
     if (gameOver||passClickRequired||waitingForOpponent) return;
-    auto sp = getSquare(GetMousePosition());
+    auto sp = getSquare(getMouse());
     if (sp.row==-1) return;
 
     switch (gameState) {
@@ -464,10 +480,10 @@ void Window::highlightSquare(Pos p, Color c){
 
 void Window::loadSprites(){
     sprites.resize(12);
-    sprites[WPawn]=LoadTexture("../assets/wp.png"); sprites[WKnight]=LoadTexture("../assets/wn.png");
-    sprites[WBishop]=LoadTexture("../assets/wb.png"); sprites[WRook]=LoadTexture("../assets/wr.png");
-    sprites[WQueen]=LoadTexture("../assets/wq.png"); sprites[WKing]=LoadTexture("../assets/wk.png");
-    sprites[BPawn]=LoadTexture("../assets/bp.png"); sprites[BKnight]=LoadTexture("../assets/bn.png");
-    sprites[BBishop]=LoadTexture("../assets/bb.png"); sprites[BRook]=LoadTexture("../assets/br.png");
-    sprites[BQueen]=LoadTexture("../assets/bq.png"); sprites[BKing]=LoadTexture("../assets/bk.png");
+    sprites[WPawn]=LoadTexture("assets/wp.png"); sprites[WKnight]=LoadTexture("assets/wn.png");
+    sprites[WBishop]=LoadTexture("assets/wb.png"); sprites[WRook]=LoadTexture("assets/wr.png");
+    sprites[WQueen]=LoadTexture("assets/wq.png"); sprites[WKing]=LoadTexture("assets/wk.png");
+    sprites[BPawn]=LoadTexture("assets/bp.png"); sprites[BKnight]=LoadTexture("assets/bn.png");
+    sprites[BBishop]=LoadTexture("assets/bb.png"); sprites[BRook]=LoadTexture("assets/br.png");
+    sprites[BQueen]=LoadTexture("assets/bq.png"); sprites[BKing]=LoadTexture("assets/bk.png");
 }

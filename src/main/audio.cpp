@@ -1,7 +1,7 @@
 #include "audio.h"
 #include <string>
 
-const std::string ASSET_PREFIX = "../assets/";
+const std::string ASSET_PREFIX = "assets/";
 
 AudioManager::AudioManager() {}
 

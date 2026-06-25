@@ -90,6 +90,7 @@ private:
     void restartGame();
     void checkGameEnd();
     bool isNetworkGame() const;
+    Vector2 getMouse();
     bool mousePressedLastFrame = false;
 
 public:
