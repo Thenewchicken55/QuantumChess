@@ -243,6 +243,15 @@ void Window::startGame() {
     waitingForOpponent=(gameMode==MODE_NETWORK_CLIENT); quantumMode=true; currentScreen=SCREEN_PLAYING;
 }
 
+void Window::sendNetworkMove(Move m, NetMsgType t) {
+    if (!isNetworkGame()) return;
+    NetMessage msg;
+    msg.type = t;
+    msg.data[0] = m.start.row; msg.data[1] = m.start.column;
+    msg.data[2] = m.end.row; msg.data[3] = m.end.column;
+    net.sendMessage(msg);
+}
+
 void Window::endTurn() {
     currentPlayer = (currentPlayer==White)?Black:White;
     checkGameEnd();
@@ -326,8 +335,13 @@ void Window::handleLeftMouseDown() {
             Pos orig=game.getSuperposition().originalPos;
             Pos result=game.collapseSuperposition();
             lastMove={orig,result};
-            if (result==sp) { game.movePiece({moves.m1.start,result}); lastMove={moves.m1.start,result}; audio.playCapture(); }
-            else audio.playMiss();
+            if (result==sp) {
+                Move mv={moves.m1.start,result}; game.movePiece(mv); lastMove=mv; audio.playCapture();
+                sendNetworkMove(mv, NetMsgType::Move);
+            } else {
+                audio.playMiss();
+                sendNetworkMove({{-1,-1},{-1,-1}}, NetMsgType::Miss);
+            }
             endTurn(); break;
         }
         // Own ghost → collapse
@@ -335,6 +349,7 @@ void Window::handleLeftMouseDown() {
             Pos orig=game.getSuperposition().originalPos;
             game.collapseToPosition(sp);
             lastMove={orig,sp};
+            sendNetworkMove({orig,sp}, NetMsgType::Move);
             endTurn(); break;
         }
         // Select own piece
@@ -372,8 +387,13 @@ void Window::handleLeftMouseDown() {
         if (game.isSuperpositionSquare(sp)&&game.hasActiveSuperposition()&&game.getSuperposition().color!=currentPlayer) {
             Pos orig=game.getSuperposition().originalPos; Pos result=game.collapseSuperposition();
             lastMove={orig,result};
-            if (result==sp) { game.movePiece({moves.m1.start,result}); lastMove={moves.m1.start,result}; audio.playCapture(); }
-            else audio.playMiss();
+            if (result==sp) {
+                Move mv={moves.m1.start,result}; game.movePiece(mv); lastMove=mv; audio.playCapture();
+                sendNetworkMove(mv, NetMsgType::Move);
+            } else {
+                audio.playMiss();
+                sendNetworkMove({{-1,-1},{-1,-1}}, NetMsgType::Miss);
+            }
             validMovePositions.clear(); endTurn(); break;
         }
         if (!game.isEmpty(sp)&&!game.isSuperpositionSquare(sp)) { audio.playMoveInvalid(); break; }
@@ -382,8 +402,8 @@ void Window::handleLeftMouseDown() {
         else {
             validMovePositions.clear();
             if (game.isSuperpositionSquare(moves.m1.end)&&game.hasActiveSuperposition())
-                { game.collapseToPosition(moves.m1.end); lastMove=moves.m1; }
-            else { bool wc=!game.isEmpty(moves.m1.end); game.movePiece(moves.m1); lastMove=moves.m1; if(wc) audio.playCapture(); else audio.playMove(); }
+                { game.collapseToPosition(moves.m1.end); lastMove=moves.m1; sendNetworkMove(moves.m1, NetMsgType::Move); }
+            else { bool wc=!game.isEmpty(moves.m1.end); game.movePiece(moves.m1); lastMove=moves.m1; sendNetworkMove(moves.m1, NetMsgType::Move); if(wc) audio.playCapture(); else audio.playMove(); }
             endTurn();
         }
         break;
@@ -402,6 +422,13 @@ void Window::handleLeftMouseDown() {
             game.addSuperpositionPositions(nd);
         else
             game.enterSuperposition(moves.m1.start,nd,game.getPieceID(moves.m1.start),currentPlayer);
+        if (isNetworkGame()) {
+            NetMessage qm; qm.type=NetMsgType::Quantum;
+            qm.data[0]=moves.m1.start.row; qm.data[1]=moves.m1.start.column;
+            qm.data[2]=moves.m1.end.row; qm.data[3]=moves.m1.end.column;
+            qm.data[4]=moves.m2.end.row; qm.data[5]=moves.m2.end.column;
+            net.sendMessage(qm);
+        }
         endTurn();
         break;
     }

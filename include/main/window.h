@@ -90,6 +90,7 @@ private:
     void restartGame();
     void checkGameEnd();
     bool isNetworkGame() const;
+    void sendNetworkMove(Move m, NetMsgType t);
     Vector2 getMouse();
     bool mousePressedLastFrame = false;
 
