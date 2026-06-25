@@ -67,35 +67,18 @@ void Window::highlightMovesSelected() {
 void Window::renderTitleScreen() {
     int w=GetScreenWidth(), h=GetScreenHeight();
     DrawText("Quantum Chess", w/2-MeasureText("Quantum Chess",60)/2, h/4, 60, DARKGRAY);
-    const int BW=220, BH=50, NBTN=4;
-    Vector2 mp = getMouse();
-    Rectangle r[NBTN];
-    int ys[NBTN] = {-80, -10, 60, 130};
-    for (int i=0;i<NBTN;i++) r[i]={(float)(w/2-BW/2),(float)(h/2-BH/2+ys[i]),(float)BW,(float)BH};
-    const char* labels[NBTN] = {"Local Game","Hot-Seat","Host Game","Join Game"};
-    const char* keys[NBTN]   = {"1","2","3","4"};
-    for (int i=0;i<NBTN;i++) {
-        Color bg = isInside(mp,r[i]) ? (IsMouseButtonDown(MOUSE_BUTTON_LEFT)?DARKBROWN:GRAY) : DARKGRAY;
-        DrawRectangleRec(r[i],bg);
-        DrawText(labels[i], (int)(r[i].x+(BW-MeasureText(labels[i],28))/2), (int)(r[i].y+11), 28, WHITE);
-        DrawText(keys[i], (int)(r[i].x+8), (int)(r[i].y+10), 22, Fade(WHITE,0.6f));
+    const char* labels[4] = {"1 - Local Game","2 - Hot-Seat","3 - Host Game","4 - Join Game"};
+    int ypos[4] = {h/2-80, h/2-10, h/2+60, h/2+130};
+    for (int i=0;i<4;i++) {
+        DrawText(labels[i], w/2-MeasureText(labels[i],28)/2, ypos[i], 28, DARKGRAY);
     }
-    Vector2 scl = GetWindowScaleDPI();
-    Vector2 rw = {(float)GetRenderWidth(), (float)GetRenderHeight()};
-    Vector2 raw = GetMousePosition();
-    std::string dbg = "Raw "+std::to_string((int)raw.x)+","+std::to_string((int)raw.y)
-        +" | Scaled "+std::to_string((int)mp.x)+","+std::to_string((int)mp.y)
-        +" | Win "+std::to_string(w)+"x"+std::to_string(h)
-        +" | Scale "+std::to_string(scl.x).substr(0,4)+","+std::to_string(scl.y).substr(0,4)
-        +" | Render "+std::to_string((int)rw.x)+"x"+std::to_string((int)rw.y);
-    DrawText(dbg.c_str(),10,h-50,14,GRAY);
-    DrawText((std::to_string(GetFPS())+" FPS").c_str(),10,h-30,14,GRAY);
     if (net.getRole()==NetworkRole::Host) {
         DrawText("Hosting port 5555...", w/2-120, h/2+200,18,DARKGRAY);
         if (net.isConnected()) DrawText("Opponent connected!", w/2-110, h/2+230,20,GREEN);
     }
     if (!networkStatus.empty())
         DrawText(networkStatus.c_str(), w/2-MeasureText(networkStatus.c_str(),20)/2, h/2+260,20,RED);
+    DrawText("Click anywhere or press 1-4", w/2-MeasureText("Click anywhere or press 1-4",20)/2, h-60,20,GRAY);
 }
 
 void Window::renderSetupScreen() {
@@ -190,21 +173,11 @@ Vector2 Window::getMouse() {
 }
 
 void Window::handleTitleClick() {
-    Vector2 m = getMouse();
-    int w=GetScreenWidth(), h=GetScreenHeight();
-    const int BW=220, BH=50, NBTN=4;
-    int ys[NBTN] = {-80, -10, 60, 130};
-    for (int i=0;i<NBTN;i++) {
-        Rectangle ri={(float)(w/2-BW/2),(float)(h/2-BH/2+ys[i]),(float)BW,(float)BH};
-        if (isInside(m,ri)) {
-            if (i==0) { gameMode=MODE_LOCAL; currentScreen=SCREEN_SETUP; }
-            else if (i==1) { gameMode=MODE_HOTSEAT; currentScreen=SCREEN_SETUP; }
-            else if (i==2) { gameMode=MODE_NETWORK_HOST; if (net.startHost()) { networkStatus=""; currentScreen=SCREEN_SETUP; } else networkStatus="Failed host"; }
-            else if (i==3) { if (net.getRole()==NetworkRole::None) { gameMode=MODE_NETWORK_CLIENT; currentScreen=SCREEN_SETUP; } }
-            audio.playButtonClick();
-            return;
-        }
-    }
+    // Any click anywhere on the title screen starts a local game.
+    // Use keyboard 1-4 for other modes.
+    gameMode = MODE_LOCAL;
+    currentScreen = SCREEN_SETUP;
+    audio.playButtonClick();
 }
 
 void Window::handleSetupClick() {
