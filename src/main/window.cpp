@@ -64,11 +64,21 @@ void Window::highlightMovesSelected() {
 void Window::renderTitleScreen() {
     int w=GetScreenWidth(), h=GetScreenHeight();
     DrawText("Quantum Chess", w/2-MeasureText("Quantum Chess",60)/2, h/4, 60, DARKGRAY);
-    auto btn = [&](const char* t, int y){
-        Rectangle r={(float)(w/2-130),(float)(h/2+y-5),260,60};
-        DrawRectangleRec(r,DARKGRAY); DrawText(t,r.x+(260-MeasureText(t,28))/2,r.y+16,28,WHITE); return r;
-    };
-    btn("Local Game",-80); btn("Hot-Seat",-10); btn("Host Game",60); btn("Join Game",130);
+    const int BW=220, BH=50, NBTN=4;
+    Vector2 mp = GetMousePosition();
+    Rectangle r[NBTN];
+    int ys[NBTN] = {-80, -10, 60, 130};
+    for (int i=0;i<NBTN;i++) r[i]={(float)(w/2-BW/2),(float)(h/2-BH/2+ys[i]),(float)BW,(float)BH};
+    const char* labels[NBTN] = {"Local Game","Hot-Seat","Host Game","Join Game"};
+    const char* keys[NBTN]   = {"1","2","3","4"};
+    for (int i=0;i<NBTN;i++) {
+        Color bg = isInside(mp,r[i]) ? (IsMouseButtonDown(MOUSE_BUTTON_LEFT)?DARKBROWN:GRAY) : DARKGRAY;
+        DrawRectangleRec(r[i],bg);
+        DrawText(labels[i], (int)(r[i].x+(BW-MeasureText(labels[i],28))/2), (int)(r[i].y+11), 28, WHITE);
+        DrawText(keys[i], (int)(r[i].x+8), (int)(r[i].y+10), 22, Fade(WHITE,0.6f));
+    }
+    std::string dbg = "Mouse "+std::to_string((int)mp.x)+","+std::to_string((int)mp.y)+" | "+std::to_string(w)+"x"+std::to_string(h)+" | "+std::to_string(GetFPS())+" FPS";
+    DrawText(dbg.c_str(),10,h-22,14,GRAY);
     if (net.getRole()==NetworkRole::Host) {
         DrawText("Hosting port 5555...", w/2-120, h/2+200,18,DARKGRAY);
         if (net.isConnected()) DrawText("Opponent connected!", w/2-110, h/2+230,20,GREEN);
@@ -163,11 +173,19 @@ void Window::render() {
 void Window::handleTitleClick() {
     Vector2 m = GetMousePosition();
     int w=GetScreenWidth(), h=GetScreenHeight();
-    auto hit = [&](int y){return isInside(m,{(float)(w/2-130),(float)(h/2+y-5),260,60});};
-    if (hit(-80)) { gameMode=MODE_LOCAL; currentScreen=SCREEN_SETUP; audio.playButtonClick(); }
-    else if (hit(-10)) { gameMode=MODE_HOTSEAT; currentScreen=SCREEN_SETUP; audio.playButtonClick(); }
-    else if (hit(60)) { gameMode=MODE_NETWORK_HOST; if (net.startHost()) { networkStatus=""; currentScreen=SCREEN_SETUP; } else networkStatus="Failed host"; audio.playButtonClick(); }
-    else if (hit(130)) { if (net.getRole()==NetworkRole::None) { gameMode=MODE_NETWORK_CLIENT; currentScreen=SCREEN_SETUP; audio.playButtonClick(); } }
+    const int BW=220, BH=50, NBTN=4;
+    int ys[NBTN] = {-80, -10, 60, 130};
+    for (int i=0;i<NBTN;i++) {
+        Rectangle ri={(float)(w/2-BW/2),(float)(h/2-BH/2+ys[i]),(float)BW,(float)BH};
+        if (isInside(m,ri)) {
+            if (i==0) { gameMode=MODE_LOCAL; currentScreen=SCREEN_SETUP; }
+            else if (i==1) { gameMode=MODE_HOTSEAT; currentScreen=SCREEN_SETUP; }
+            else if (i==2) { gameMode=MODE_NETWORK_HOST; if (net.startHost()) { networkStatus=""; currentScreen=SCREEN_SETUP; } else networkStatus="Failed host"; }
+            else if (i==3) { if (net.getRole()==NetworkRole::None) { gameMode=MODE_NETWORK_CLIENT; currentScreen=SCREEN_SETUP; } }
+            audio.playButtonClick();
+            return;
+        }
+    }
 }
 
 void Window::handleSetupClick() {
@@ -222,12 +240,19 @@ void Window::pollEvents() {
         else { net.disconnect(); currentScreen=SCREEN_TITLE; }
     }
     if (IsWindowResized()) resizedWindow();
+    bool mouseDown = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+    bool mouseReleased = mousePressedLastFrame && !mouseDown;
+    mousePressedLastFrame = mouseDown;
     if (currentScreen==SCREEN_TITLE) {
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) handleTitleClick();
+        if (IsKeyPressed(KEY_ONE)) { gameMode=MODE_LOCAL; currentScreen=SCREEN_SETUP; audio.playButtonClick(); }
+        else if (IsKeyPressed(KEY_TWO)) { gameMode=MODE_HOTSEAT; currentScreen=SCREEN_SETUP; audio.playButtonClick(); }
+        else if (IsKeyPressed(KEY_THREE)) { gameMode=MODE_NETWORK_HOST; if (net.startHost()) { networkStatus=""; currentScreen=SCREEN_SETUP; } else networkStatus="Failed host"; audio.playButtonClick(); }
+        else if (IsKeyPressed(KEY_FOUR)) { if (net.getRole()==NetworkRole::None) { gameMode=MODE_NETWORK_CLIENT; currentScreen=SCREEN_SETUP; audio.playButtonClick(); } }
+        if (mouseReleased) handleTitleClick();
         if (net.getRole()==NetworkRole::Host&&net.isConnected()) currentScreen=SCREEN_SETUP;
     } else if (currentScreen==SCREEN_SETUP) {
         handleSetupKeyInput();
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) handleSetupClick();
+        if (mouseReleased) handleSetupClick();
     } else if (currentScreen==SCREEN_PLAYING) {
         if (IsKeyPressed(KEY_R)&&!isNetworkGame()) restartGame();
         if (IsKeyPressed(KEY_Q)&&!gameOver&&!waitingForOpponent) { quantumMode=!quantumMode; audio.playButtonClick(); }
@@ -405,7 +430,7 @@ void Window::drawSuperpositionGhosts() {
     }
 }
 
-void Window::run(){ while(!WindowShouldClose()){ pollEvents(); render(); } }
+void Window::run(){ while(!WindowShouldClose()){ PollInputEvents(); pollEvents(); render(); } }
 
 Pos Window::getSquare(Vector2 cp) {
     if (cp.x<boardStart.x||cp.x>boardEnd.x||cp.y<boardStart.y||cp.y>boardEnd.y) return {-1,-1};

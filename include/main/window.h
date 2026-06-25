@@ -90,6 +90,7 @@ private:
     void restartGame();
     void checkGameEnd();
     bool isNetworkGame() const;
+    bool mousePressedLastFrame = false;
 
 public:
     Window();
