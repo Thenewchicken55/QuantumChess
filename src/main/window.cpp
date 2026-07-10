@@ -16,14 +16,9 @@ static bool isInside(Vector2 pos, Rectangle r) {
 Window::Window()
     : rng(std::chrono::steady_clock::now().time_since_epoch().count()) {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    InitWindow(screenWidth, screenHeight, "Quantum Chess");
+    InitWindow(900, 700, "Quantum Chess");
     SetTargetFPS(30);
-    int mon = GetCurrentMonitor();
-    int mw = GetMonitorWidth(mon), mh = GetMonitorHeight(mon);
-    screenWidth = std::min(screenWidth, mw * 4 / 5);
-    screenHeight = std::min(screenHeight, mh * 4 / 5);
-    SetWindowSize(screenWidth, screenHeight);
-    SetWindowPosition(mw/2 - screenWidth/2, mh/2 - screenHeight/2);
+    screenWidth = 900; screenHeight = 700;
     InitAudioDevice();
     audio.init();
     updateBoard();
