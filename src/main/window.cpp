@@ -67,21 +67,24 @@ void Window::renderTitleScreen() {
     int w=GetScreenWidth(), h=GetScreenHeight();
     DrawText("Quantum Chess", w/2-MeasureText("Quantum Chess",60)/2, h/4, 60, DARKGRAY);
 
-    const int bw=240, bh=45;
-    int ypos[] = {h/2-80, h/2-10, h/2+60, h/2+130};
     const char* labels[] = {"Local Game", "Hot-Seat", "Host Game", "Join Game"};
+    int ys[] = {h/2-80, h/2-10, h/2+60, h/2+130};
+    const int bw=240, bh=45;
     for (int i=0;i<4;i++) {
-        Rectangle r={(float)(w/2-bw/2),(float)(ypos[i]-bh/2),(float)bw,(float)bh};
-        DrawRectangleRec(r,DARKGRAY);
+        Rectangle r={(float)(w/2-bw/2),(float)(ys[i]-bh/2),(float)bw,(float)bh};
+        DrawRectangleRec(r, DARKGRAY);
         DrawText(labels[i], (int)(r.x+(bw-MeasureText(labels[i],24))/2), (int)(r.y+12), 24, WHITE);
     }
+    DrawText("Click anywhere for Local (L=Local H=Hot O=Host J=Join)",
+             w/2-MeasureText("Click anywhere for Local (L=Local H=Hot O=Host J=Join)",18)/2,
+             h-50, 18, GRAY);
 
     if (net.getRole()==NetworkRole::Host) {
-        DrawText("Hosting port 5555...", w/2-120, h/2+200,18,DARKGRAY);
-        if (net.isConnected()) DrawText("Opponent connected!", w/2-110, h/2+230,20,GREEN);
+        DrawText("Hosting port 5555...", w/2-120, ys[2]+100, 18, DARKGRAY);
+        if (net.isConnected()) DrawText("Opponent connected!", w/2-110, ys[2]+130, 20, GREEN);
     }
 
-    DrawText("ESC to quit", w/2-MeasureText("ESC to quit",16)/2, h-30,16,GRAY);
+    DrawText("ESC to quit", w/2-MeasureText("ESC to quit",16)/2, h-20, 16, GRAY);
 }
 
 void Window::renderSetupScreen() {
@@ -175,23 +178,9 @@ Vector2 Window::getMouse() {
 }
 
 void Window::handleTitleClick() {
-    Vector2 m = getMouse();
-    int w=GetScreenWidth(), h=GetScreenHeight();
-    const int bw=240, bh=45;
-    int ypos[] = {h/2-80, h/2-10, h/2+60, h/2+130};
-    for (int i=0;i<4;i++) {
-        Rectangle r={(float)(w/2-bw/2),(float)(ypos[i]-bh/2),(float)bw,(float)bh};
-        if (CheckCollisionPointRec(m, r)) {
-            if (i==0) gameMode=MODE_LOCAL;
-            else if (i==1) gameMode=MODE_HOTSEAT;
-            else if (i==2) gameMode=MODE_NETWORK_HOST;
-            else if (i==3) gameMode=MODE_NETWORK_CLIENT;
-            currentScreen=SCREEN_SETUP;
-            audio.playButtonClick();
-            if (gameMode==MODE_NETWORK_HOST && net.startHost()) networkStatus="";
-            return;
-        }
-    }
+    gameMode = MODE_LOCAL;
+    currentScreen = SCREEN_SETUP;
+    audio.playButtonClick();
 }
 
 void Window::handleSetupClick() {
@@ -263,6 +252,10 @@ void Window::pollEvents() {
     bool mouseReleased = mousePressedLastFrame && !mouseDown;
     mousePressedLastFrame = mouseDown;
     if (currentScreen==SCREEN_TITLE) {
+        if (IsKeyPressed(KEY_L)) { gameMode=MODE_LOCAL; currentScreen=SCREEN_SETUP; audio.playButtonClick(); }
+        else if (IsKeyPressed(KEY_H)) { gameMode=MODE_HOTSEAT; currentScreen=SCREEN_SETUP; audio.playButtonClick(); }
+        else if (IsKeyPressed(KEY_O)) { gameMode=MODE_NETWORK_HOST; if (net.startHost()) networkStatus=""; currentScreen=SCREEN_SETUP; audio.playButtonClick(); }
+        else if (IsKeyPressed(KEY_J)) { gameMode=MODE_NETWORK_CLIENT; currentScreen=SCREEN_SETUP; audio.playButtonClick(); }
         if (mouseReleased) handleTitleClick();
         if (net.getRole()==NetworkRole::Host&&net.isConnected()) currentScreen=SCREEN_SETUP;
     } else if (currentScreen==SCREEN_SETUP) {
