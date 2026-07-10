@@ -19,6 +19,9 @@ Window::Window()
     InitWindow(900, 700, "Quantum Chess");
     SetTargetFPS(30);
     screenWidth = 900; screenHeight = 700;
+    int mon = GetCurrentMonitor();
+    int mw = GetMonitorWidth(mon), mh = GetMonitorHeight(mon);
+    SetWindowPosition(mw/2 - screenWidth/2, mh/2 - screenHeight/2);
     InitAudioDevice();
     audio.init();
     updateBoard();
