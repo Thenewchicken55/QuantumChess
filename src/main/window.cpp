@@ -170,7 +170,7 @@ void Window::render() {
 
 Vector2 Window::getMouse() {
     Vector2 m = GetMousePosition();
-    m.y += 20.0f;
+    m.y += 22.0f;
     return m;
 }
 
