@@ -20,8 +20,8 @@ Window::Window()
     SetTargetFPS(30);
     screenWidth = 900; screenHeight = 700;
     int mon = GetCurrentMonitor();
-    int mw = GetMonitorWidth(mon), mh = GetMonitorHeight(mon);
-    SetWindowPosition(mw/2 - screenWidth/2, mh/2 - screenHeight/2);
+    SetWindowPosition(GetMonitorWidth(mon)/2-screenWidth/2,
+                      GetMonitorHeight(mon)/2-screenHeight/2);
     InitAudioDevice();
     audio.init();
     updateBoard();
@@ -169,7 +169,9 @@ void Window::render() {
 }
 
 Vector2 Window::getMouse() {
-    return GetMousePosition();
+    Vector2 m = GetMousePosition();
+    m.y += 20.0f;
+    return m;
 }
 
 void Window::handleTitleClick() {
