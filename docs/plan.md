@@ -1,5 +1,10 @@
 # QuantumChess — Implementation Plan
 
+> **Note (July 2026):** Phases 1–4 below are complete and verified. Phase 5
+> (visual polish) is the remaining roadmap. For a full code review and the
+> status of each item, see **`docs/REVIEW.md`** — it's the source of truth for
+> what's been implemented, what's deferred, and what's recommended next.
+
 ## Game Design
 
 QuantumChess is standard chess with one twist: when you move a piece, you may put it
@@ -93,54 +98,54 @@ Changes from the old v2:
 
 ---
 
-## Phase 2.5: Superposition Refinements 🔨 IN PROGRESS
+## Phase 2.5: Superposition Refinements ✅ COMPLETE
 
 ### 2.5a. Normal/Quantum move choice
-- [ ] Add `quantumMode` toggle (press Q or click button)
-- [ ] Normal mode: select piece → pick ONE destination → execute immediately
-- [ ] Quantum mode: select piece → pick FIRST destination → pick SECOND destination → enter superposition
-- [ ] Both modes respect chess legality (no illegal moves, no leaving king in check)
+- [x] Add `quantumMode` toggle (press Q)
+- [x] Normal mode: select piece → pick ONE destination → execute immediately
+- [x] Quantum mode: select piece → pick FIRST destination → pick SECOND destination → enter superposition
+- [x] Both modes respect chess legality (no illegal moves, no leaving king in check)
 
 ### 2.5b. Persistent superposition (no auto-collapse)
-- [ ] Remove auto-collapse after opponent's normal move
-- [ ] Superposition persists indefinitely until a capture attempt forces collapse
-- [ ] Owning player can interact with superposition piece on subsequent turns:
+- [x] Remove auto-collapse after opponent's normal move
+- [x] Superposition persists indefinitely until a capture attempt forces collapse
+- [x] Owning player can interact with superposition piece on subsequent turns:
   - Click original square → re-enter superposition with new destinations
   - Click a ghost square → collapse piece to that position (normal move)
 
 ### 2.5c. Probability display
-- [ ] Display "50%" text overlay on each ghost square
-- [ ] Probability calculated as `100 / numGhosts` (currently always 50%)
+- [x] Display probability text overlay on each ghost square
+- [x] Probability rounded correctly (`std::lround(100.0 / n)`)
 - [ ] Future: dynamic probability weights when more ghost positions are added
 
 ### 2.5d. State machine simplification
-- [ ] Remove `quantumPickSecond` state (was confusing — picked a second piece that was ignored)
-- [ ] Rename `quantumPickFirst` → `selectPiece`, `quantumPickDest1` → `selectDest1`, `quantumPickDest2` → `selectDest2`
-- [ ] Single destination selected → immediate `movePiece` (Normal mode)
-- [ ] Two destinations selected → `enterSuperposition` (Quantum mode)
+- [x] Remove `quantumPickSecond` state
+- [x] `selectPiece` / `selectDest1` / `selectDest2` states
+- [x] Single destination → immediate `movePiece` (Normal mode)
+- [x] Two destinations → `enterSuperposition` (Quantum mode)
 
 ---
 
 ## Phase 3: Sound Effects ✅ COMPLETE
-- [ ] Load sound assets at startup
-- [ ] Audio cleanup in destructor
+- [x] Load sound assets at startup
+- [x] Audio cleanup in destructor
+- [x] Volume control via `AudioManager::setVolume` (toggled with `M`)
 
-### 3b. Sound assets (generate or use placeholder tones)
+### 3b. Sound assets
 
-- [ ] `move.wav` — piece movement
-- [ ] `capture.wav` — piece capture
-- [ ] `quantum_enter.wav` — entering superposition (ethereal tone)
-- [ ] `quantum_collapse.wav` — superposition collapse (impact + shimmer)
-- [ ] `check.wav` — check notification
-- [ ] `checkmate.wav` — game over fanfare
-- [ ] `miss.wav` — capture miss sound
-- [ ] `button_click.wav` — UI interaction
-- [ ] `move_invalid.wav` — invalid move buzz
+- [x] `move.wav` — piece movement
+- [x] `capture.wav` — piece capture
+- [x] `quantum_enter.wav` — entering superposition (ethereal tone)
+- [x] `quantum_collapse.wav` — superposition collapse (impact + shimmer)
+- [x] `check.wav` — check notification
+- [x] `checkmate.wav` — game over fanfare
+- [x] `miss.wav` — capture miss sound
+- [x] `button_click.wav` — UI interaction
+- [x] `move_invalid.wav` — invalid move buzz
 
 ### 3c. Sound triggers
-
-- [ ] Play on piece select, move execute, capture, collapse, check, etc.
-- [ ] Volume control option in settings
+- [x] Play on piece select, move execute, capture, collapse, check, etc.
+- [x] Volume control (press `M` to mute/unmute)
 
 ---
 
@@ -179,12 +184,15 @@ Changes from the old v2:
 
 ### 5b. UI
 
-- [ ] Styled buttons with hover/press states (raygui or custom)
-- [ ] Game info panel (move history, captured pieces, timer)
-- [ ] Move confirmation dialog
-- [ ] Settings menu (sound volume, board orientation, theme)
-- [ ] Title screen with "Play", "Multiplayer", "Settings"
-- [ ] Win/loss screen with stats
+- [x] Styled buttons with hover/press states (custom `drawButton` helper)
+- [x] Game info panel (move history, captured pieces)
+- [x] Pawn promotion dialog (Q/R/B/N choice)
+- [x] Title screen with clickable buttons (Local/Hot-Seat/Host/Join)
+- [x] Board flip + coordinate labels (a-h, 1-8)
+- [x] Debug overlay (F1): FPS, state, mouse coords, superposition probability
+- [x] Audio mute toggle (M)
+- [ ] Settings menu (sound volume slider, board theme) — future
+- [ ] Win/loss screen with stats — future
 
 ### 5c. Effects
 
@@ -193,6 +201,46 @@ Changes from the old v2:
 - [ ] Screen shake on captures / collapses
 - [ ] Board theme selector (wood, marble, dark mode)
 - [ ] Piece animation on select (slight bob/glow)
+
+---
+
+## Phase 6: Hardening Pass ✅ COMPLETE (2026)
+
+A focused pass fixing correctness bugs and improving maintainability. See
+`docs/REVIEW.md` for the full review.
+
+### 6a. Critical bug fixes
+- [x] `isSquareAttacked` now uses `Piece::getAttackSquares()` (pawn diagonals only)
+- [x] Castling verifies king/rook piece types
+- [x] Network `endTurn()` sets `waitingForOpponent` (closes move-opp's-pieces exploit)
+- [x] Network `Miss` toggles `currentPlayer`
+- [x] Network `Quantum` handles already-active superposition correctly
+- [x] Title-screen buttons clickable (not just keyboard)
+- [x] Setup-screen BACK button functional
+- [x] Removed macOS `+22` mouse hack; fixed double `CloseWindow()` on ESC
+- [x] `getSuperpositionProbability` rounds properly; en-passant capture sound
+
+### 6b. Code quality
+- [x] `Pos` default ctor / `operator!=` / `isValid()`
+- [x] `const` correctness on `Board::getPieceID` / `isEmpty`
+- [x] Bounds checks in `getPiecesMoves` / `getRawPieceMoves`
+- [x] Member `std::mt19937` in `Board` (was `static`)
+- [x] Per-instance network receive buffer (was function-static)
+- [x] Removed redundant `PollInputEvents()` in run loop
+
+### 6c. Build system
+- [x] Pinned raylib to `5.5` (was `master`)
+- [x] Configurable `CMAKE_BUILD_TYPE` (defaults Release)
+- [x] `qc_warnings` interface target (`-Wall -Wextra -Wpedantic` + select)
+- [x] `CMAKE_EXPORT_COMPILE_COMMANDS`, install target, fixed `BUILD_GAMES` typo
+
+### 6d. Network protocol
+- [x] `MOVE` message extended with optional `pt` (promotion piece) field
+
+### Deferred
+- [ ] `enum class` conversion for `SquareColor`/`PieceID`/`States` (see REVIEW §2.1)
+- [ ] Unit tests (Catch2) for `Board` rules
+- [ ] Animations / particle effects / screen shake
 
 ---
 
