@@ -19,6 +19,9 @@ public:
 
     std::vector<Pos> getValidMoves() override;
 
+    // Pawns attack only diagonally — forward moves are not attacks.
+    std::vector<Pos> getAttackSquares() override;
+
     PieceID getType() const override;
 };
 

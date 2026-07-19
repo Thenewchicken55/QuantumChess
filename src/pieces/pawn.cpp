@@ -47,6 +47,18 @@ std::vector<Pos> Pawn::getValidMoves(){
     return moves;
 }
 
+std::vector<Pos> Pawn::getAttackSquares(){
+    int directionMultiplier = (color == White) ? 1 : -1;
+    std::vector<Pos> attacks;
+    Pos diagRight = {pos.row + 1*directionMultiplier, pos.column + 1};
+    Pos diagLeft  = {pos.row + 1*directionMultiplier, pos.column - 1};
+    if (diagRight.row >= 0 && diagRight.row < 8 && diagRight.column >= 0 && diagRight.column < 8)
+        attacks.push_back(diagRight);
+    if (diagLeft.row >= 0 && diagLeft.row < 8 && diagLeft.column >= 0 && diagLeft.column < 8)
+        attacks.push_back(diagLeft);
+    return attacks;
+}
+
 PieceID Pawn::getType() const{
     return (color == White) ? WPawn : BPawn;
 }

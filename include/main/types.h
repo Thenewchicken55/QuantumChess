@@ -28,11 +28,20 @@ enum PieceID{
 SquareColor getPieceColor(PieceID ID);
 
 struct Pos{
-    int row;
-    int column;
+    int row = -1;
+    int column = -1;
 
     bool operator==(const Pos& rightSide) const {
         return row == rightSide.row && column == rightSide.column;
+    }
+
+    bool operator!=(const Pos& rightSide) const {
+        return !(*this == rightSide);
+    }
+
+    // A position is valid if it falls inside the 8x8 board.
+    bool isValid() const {
+        return row >= 0 && row < 8 && column >= 0 && column < 8;
     }
 };
 

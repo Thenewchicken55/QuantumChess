@@ -22,6 +22,8 @@
 #include <chrono>
 
 Board::Board(){
+    std::random_device rd;
+    rng.seed(rd());
     resetBoard();
 }
 
@@ -66,19 +68,19 @@ void Board::resetBoard(){
         for (int j = 0; j < 8; ++j){
             SquareColor color = (i == 7 || i == 6) ? Black : White;
             if (i == 1 || i==6){
-                pieces[i][j] = std::make_unique<Pawn>(color, (Pos){i, j}, this);
+                pieces[i][j] = std::make_unique<Pawn>(color, Pos{i, j}, this);
             }
             else if (i == 0 || i == 7){
                 if (j == 0 || j == 7)
-                    pieces[i][j] = std::make_unique<Rook>(color, (Pos){i, j}, this);
+                    pieces[i][j] = std::make_unique<Rook>(color, Pos{i, j}, this);
                 else if (j == 1 || j == 6)
-                    pieces[i][j] = std::make_unique<Knight>(color, (Pos){i, j}, this);
+                    pieces[i][j] = std::make_unique<Knight>(color, Pos{i, j}, this);
                 else if (j == 2 || j == 5)
-                    pieces[i][j] = std::make_unique<Bishop>(color, (Pos){i, j}, this);
+                    pieces[i][j] = std::make_unique<Bishop>(color, Pos{i, j}, this);
                 else if (j == 4)
-                    pieces[i][j] = std::make_unique<King>(color, (Pos){i, j}, this);
+                    pieces[i][j] = std::make_unique<King>(color, Pos{i, j}, this);
                 else if (j == 3)
-                    pieces[i][j] = std::make_unique<Queen>(color, (Pos){i, j}, this);
+                    pieces[i][j] = std::make_unique<Queen>(color, Pos{i, j}, this);
             }
             else {
                 pieces[i][j] = nullptr;
@@ -87,7 +89,7 @@ void Board::resetBoard(){
     }
 }
 
-void Board::movePiece(Move move) {
+void Board::movePiece(Move move, PieceID promoteTo) {
     if(move.start.row < 0 || move.start.row >= 8 || move.start.column < 0 || move.start.column >= 8 ||
         move.end.row < 0 || move.end.row >= 8 || move.end.column < 0 || move.end.column >= 8) {
         return;
@@ -105,7 +107,8 @@ void Board::movePiece(Move move) {
 
     // Check for en passant capture
     if ((movingType == WPawn || movingType == BPawn) &&
-        move.end.row == enPassantTarget.row && move.end.column == enPassantTarget.column) {
+        move.end.row == enPassantTarget.row && move.end.column == enPassantTarget.column &&
+        move.end.column != move.start.column) {
         isEnPassantCapture = true;
     }
 
@@ -121,7 +124,7 @@ void Board::movePiece(Move move) {
     // Handle en passant: remove the captured pawn
     if (isEnPassantCapture) {
         Pos capturedPawnPos = {move.start.row, move.end.column};
-        pieces[capturedPawnPos.row][capturedPawnPos.column] = nullptr;
+        pieces[capturedPawnPos.row][capturedPawnPos.column].reset();
     }
 
     // Perform the move
@@ -148,7 +151,16 @@ void Board::movePiece(Move move) {
     // Handle pawn promotion
     if ((movingType == WPawn || movingType == BPawn) &&
         (move.end.row == 0 || move.end.row == 7)) {
-        pieces[move.end.row][move.end.column] = std::make_unique<Queen>(movingColor, move.end, this);
+        PieceID pt = promoteTo;
+        if (pt == InvalidPiece) pt = (movingColor == White) ? WQueen : BQueen;
+        SquareColor pc = getPieceColor(pt);
+        switch (pt) {
+            case WQueen:  case BQueen:  pieces[move.end.row][move.end.column] = std::make_unique<Queen>(pc,  move.end, this); break;
+            case WRook:   case BRook:   pieces[move.end.row][move.end.column] = std::make_unique<Rook>(pc,   move.end, this); break;
+            case WBishop: case BBishop: pieces[move.end.row][move.end.column] = std::make_unique<Bishop>(pc, move.end, this); break;
+            case WKnight: case BKnight: pieces[move.end.row][move.end.column] = std::make_unique<Knight>(pc, move.end, this); break;
+            default: pieces[move.end.row][move.end.column] = std::make_unique<Queen>(movingColor, move.end, this); break;
+        }
     }
 
     // Set en passant target for double pawn push
@@ -157,7 +169,7 @@ void Board::movePiece(Move move) {
     }
 }
 
-PieceID Board::getPieceID(Pos square){
+PieceID Board::getPieceID(Pos square) const {
     if (square.row < 0 || square.row >= 8 || square.column < 0 || square.column >= 8)
         return InvalidPiece;
     if (pieces[square.row][square.column] != nullptr) {
@@ -175,7 +187,7 @@ PieceID Board::getPieceID(Pos square){
     return InvalidPiece;
 }
 
-bool Board::isEmpty(Pos pos) {
+bool Board::isEmpty(Pos pos) const {
     if (pos.row < 0 || pos.row >= 8 || pos.column < 0 || pos.column >= 8)
         return false;
     if (pieces[pos.row][pos.column] != nullptr) {
@@ -194,12 +206,16 @@ bool Board::isEmpty(Pos pos) {
 }
 
 std::vector<Pos> Board::getRawPieceMoves(Pos piecePos) {
+    if (!piecePos.isValid()) return {};
+    if (pieces[piecePos.row][piecePos.column] == nullptr) return {};
     return pieces[piecePos.row][piecePos.column]->getValidMoves();
 }
 
 void Board::getPiecesMoves(Pos piecePos, std::vector<Pos>& movesAvailable){
-    std::vector<Pos> rawMoves = getRawPieceMoves(piecePos);
     movesAvailable.clear();
+    if (!piecePos.isValid()) return;
+    if (pieces[piecePos.row][piecePos.column] == nullptr) return;
+    std::vector<Pos> rawMoves = getRawPieceMoves(piecePos);
     SquareColor pieceColor = pieces[piecePos.row][piecePos.column]->getColor();
     PieceID pieceType = pieces[piecePos.row][piecePos.column]->getType();
 
@@ -305,9 +321,12 @@ bool Board::isSquareAttacked(Pos square, SquareColor byColor) {
             if (pieces[i][j] == nullptr) continue;
             if (getPieceColor(pieces[i][j]->getType()) != byColor) continue;
 
-            std::vector<Pos> rawMoves = pieces[i][j]->getValidMoves();
-            for (auto& move : rawMoves) {
-                if (move.row == square.row && move.column == square.column) {
+            // Use getAttackSquares() so pawns only "attack" diagonally — this
+            // matters for castling-through-check and king-into-check detection
+            // when the transit square is empty.
+            std::vector<Pos> attacks = pieces[i][j]->getAttackSquares();
+            for (auto& atk : attacks) {
+                if (atk.row == square.row && atk.column == square.column) {
                     return true;
                 }
             }
@@ -329,14 +348,19 @@ Pos Board::getEnPassantTarget() const {
 
 bool Board::canCastleKingSide(Pos kingPos, SquareColor color) {
     int row = kingPos.row;
+    PieceID kingID  = (color == White) ? WKing  : BKing;
+    PieceID rookID  = (color == White) ? WRook  : BRook;
+
     // King must be in starting position
     if (kingPos.column != 4) return false;
 
-    // King must not have moved
+    // King must be present, unmoved, and actually be a king of the right color
     if (pieces[row][4] == nullptr || pieces[row][4]->getHasMoved()) return false;
+    if (pieces[row][4]->getType() != kingID) return false;
 
-    // Rook must not have moved
+    // Rook must be present, unmoved, and actually be a rook of the right color
     if (pieces[row][7] == nullptr || pieces[row][7]->getHasMoved()) return false;
+    if (pieces[row][7]->getType() != rookID) return false;
 
     // Squares between must be empty
     if (!isEmpty({row, 5}) || !isEmpty({row, 6})) return false;
@@ -381,14 +405,19 @@ bool Board::isStalemate(SquareColor color) {
 
 bool Board::canCastleQueenSide(Pos kingPos, SquareColor color) {
     int row = kingPos.row;
+    PieceID kingID  = (color == White) ? WKing  : BKing;
+    PieceID rookID  = (color == White) ? WRook  : BRook;
+
     // King must be in starting position
     if (kingPos.column != 4) return false;
 
-    // King must not have moved
+    // King must be present, unmoved, and actually be a king of the right color
     if (pieces[row][4] == nullptr || pieces[row][4]->getHasMoved()) return false;
+    if (pieces[row][4]->getType() != kingID) return false;
 
-    // Rook must not have moved
+    // Rook must be present, unmoved, and actually be a rook of the right color
     if (pieces[row][0] == nullptr || pieces[row][0]->getHasMoved()) return false;
+    if (pieces[row][0]->getType() != rookID) return false;
 
     // Squares between must be empty (b1, c1, d1 for white)
     if (!isEmpty({row, 1}) || !isEmpty({row, 2}) || !isEmpty({row, 3})) return false;
@@ -430,15 +459,19 @@ void Board::collapseToPosition(Pos pos) {
 
 int Board::getSuperpositionProbability() const {
     if (!superposition.active || superposition.positions.empty()) return 0;
-    return 100 / (int)superposition.positions.size();
+    return static_cast<int>(std::lround(100.0 / static_cast<double>(superposition.positions.size())));
+}
+
+float Board::getSuperpositionProbabilityF() const {
+    if (!superposition.active || superposition.positions.empty()) return 0.0f;
+    return 100.0f / static_cast<float>(superposition.positions.size());
 }
 
 Pos Board::collapseSuperposition() {
     if (!superposition.active || superposition.positions.empty()) return {-1, -1};
 
-    static std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
-    std::uniform_int_distribution<int> dist(0, (int)superposition.positions.size() - 1);
-    Pos chosen = superposition.positions[dist(rng)];
+    std::uniform_int_distribution<int> dist(0, static_cast<int>(superposition.positions.size()) - 1);
+    Pos chosen = superposition.positions[static_cast<size_t>(dist(rng))];
 
     Move move = {superposition.originalPos, chosen};
     movePiece(move);

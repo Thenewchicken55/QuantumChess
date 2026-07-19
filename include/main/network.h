@@ -4,6 +4,7 @@
 #include <string>
 #include <functional>
 #include <thread>
+#include <array>
 
 enum class NetworkRole {
     None,
@@ -33,6 +34,11 @@ class NetworkManager {
     NetworkRole role = NetworkRole::None;
     std::thread listenThread;
     bool running = false;
+
+    // Per-instance receive buffer. Was previously a function-static buffer,
+    // which is shared across instances and not thread-safe.
+    std::array<char, 4096> partialBuf{};
+    int partialLen = 0;
 
     int connectSocket(const char* host, int port);
 

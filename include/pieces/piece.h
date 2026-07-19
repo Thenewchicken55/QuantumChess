@@ -31,7 +31,13 @@ public:
 
     SquareColor getColor() const;
 
+    // Moves the piece can make this turn (filtered by occupancy / en passant).
     virtual std::vector<Pos> getValidMoves() = 0;
+
+    // Squares this piece attacks regardless of occupancy. Equal to getValidMoves()
+    // for every piece except the pawn, whose forward move is not an attack.
+    // Used for check / castling-through-check detection.
+    virtual std::vector<Pos> getAttackSquares() { return getValidMoves(); }
 
     virtual PieceID getType() const = 0;
 

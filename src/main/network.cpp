@@ -32,7 +32,7 @@ bool NetworkManager::startHost(int port) {
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(port);
 
-    if (bind(listenSocket, (sockaddr*)&addr, sizeof(addr)) < 0) {
+    if (bind(listenSocket, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
         close(listenSocket);
         listenSocket = -1;
         return false;
@@ -66,10 +66,10 @@ int NetworkManager::connectSocket(const char* host, int port) {
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
-    memcpy(&addr.sin_addr.s_addr, server->h_addr, server->h_length);
+    memcpy(&addr.sin_addr.s_addr, server->h_addr, static_cast<size_t>(server->h_length));
     addr.sin_port = htons(port);
 
-    if (connect(sock, (sockaddr*)&addr, sizeof(addr)) < 0) {
+    if (connect(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
         close(sock);
         return -1;
     }
@@ -90,6 +90,7 @@ void NetworkManager::disconnect() {
         listenSocket = -1;
     }
     role = NetworkRole::None;
+    partialLen = 0;
 }
 
 bool NetworkManager::isConnected() const {
@@ -105,8 +106,9 @@ bool NetworkManager::sendMessage(const NetMessage& msg) {
 
     switch (msg.type) {
     case NetMsgType::Move:
-        n = snprintf(buf, sizeof(buf), "MOVE|%d|%d|%d|%d\n",
-                     msg.data[0], msg.data[1], msg.data[2], msg.data[3]);
+        // data[4] is the promotion piece type (-1 if not a promotion).
+        n = snprintf(buf, sizeof(buf), "MOVE|%d|%d|%d|%d|%d\n",
+                     msg.data[0], msg.data[1], msg.data[2], msg.data[3], msg.data[4]);
         break;
     case NetMsgType::Quantum:
         n = snprintf(buf, sizeof(buf), "QUANTUM|%d|%d|%d|%d|%d|%d\n",
@@ -131,7 +133,7 @@ bool NetworkManager::sendMessage(const NetMessage& msg) {
     }
 
     if (n <= 0) return false;
-    int sent = send(fd, buf, n, 0);
+    ssize_t sent = send(fd, buf, static_cast<size_t>(n), 0);
     return sent == n;
 }
 
@@ -142,7 +144,7 @@ NetMessage NetworkManager::receiveMessage() {
         if (clientSocket < 0) {
             sockaddr_in clientAddr{};
             socklen_t clientLen = sizeof(clientAddr);
-            int newSock = accept(listenSocket, (sockaddr*)&clientAddr, &clientLen);
+            int newSock = accept(listenSocket, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
             if (newSock >= 0) {
                 setNonBlocking(newSock);
                 clientSocket = newSock;
@@ -153,28 +155,29 @@ NetMessage NetworkManager::receiveMessage() {
     int fd = clientSocket;
     if (fd < 0) return msg;
 
-    static char partialBuf[4096];
-    static int partialLen = 0;
-
-    int n = recv(fd, partialBuf + partialLen, sizeof(partialBuf) - partialLen - 1, 0);
+    ssize_t n = recv(fd, partialBuf.data() + partialLen,
+                     static_cast<int>(partialBuf.size()) - partialLen - 1, 0);
     if (n <= 0) return msg;
 
-    partialLen += n;
-    partialBuf[partialLen] = '\0';
+    partialLen += static_cast<int>(n);
+    partialBuf[static_cast<size_t>(partialLen)] = '\0';
 
-    char* newline = strchr(partialBuf, '\n');
+    char* newline = strchr(partialBuf.data(), '\n');
     if (!newline) return msg;
 
     *newline = '\0';
-    int lineLen = (int)(newline - partialBuf);
-    std::string line(partialBuf, lineLen);
-    memmove(partialBuf, newline + 1, partialLen - lineLen - 1);
-    partialLen -= lineLen + 1;
+    std::size_t lineLen = static_cast<std::size_t>(newline - partialBuf.data());
+    std::string line(partialBuf.data(), lineLen);
+    int remaining = partialLen - static_cast<int>(lineLen) - 1;
+    memmove(partialBuf.data(), newline + 1, static_cast<size_t>(remaining));
+    partialLen = remaining;
 
     if (line.compare(0, 5, "MOVE|") == 0) {
         msg.type = NetMsgType::Move;
-        sscanf(line.c_str(), "MOVE|%d|%d|%d|%d",
-               &msg.data[0], &msg.data[1], &msg.data[2], &msg.data[3]);
+        msg.data[4] = -1; // default: no promotion
+        // The 5th field is optional for backward compatibility.
+        sscanf(line.c_str(), "MOVE|%d|%d|%d|%d|%d",
+               &msg.data[0], &msg.data[1], &msg.data[2], &msg.data[3], &msg.data[4]);
     } else if (line.compare(0, 8, "QUANTUM|") == 0) {
         msg.type = NetMsgType::Quantum;
         sscanf(line.c_str(), "QUANTUM|%d|%d|%d|%d|%d|%d",

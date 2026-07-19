@@ -13,6 +13,7 @@
 #include <memory>
 #include <vector>
 #include <functional>
+#include <random>
 
 class Board{
 private:
@@ -21,6 +22,10 @@ private:
     Pos enPassantTarget = {-1, -1};
 
     SuperpositionState superposition;
+
+    // PRNG used for superposition collapse. Member (not static) so collapse
+    // behaviour is deterministic given a seed — useful for tests.
+    std::mt19937 rng;
 
     // returns a reference to the piece at the given position
     std::unique_ptr<Piece>& getPiece(Pos pos);
@@ -41,12 +46,14 @@ public:
     // Returns pieces including superposition ghost positions
     std::vector<std::pair<Pos, PieceID>> getAllVisiblePieces();
 
-    PieceID getPieceID(Pos square);
+    PieceID getPieceID(Pos square) const;
 
-    void movePiece(Move move);
+    // Execute a move. If the move is a pawn reaching the last rank, it promotes
+    // to `promoteTo` (or to a Queen if InvalidPiece, for backward compat).
+    void movePiece(Move move, PieceID promoteTo = InvalidPiece);
 
     // Checks if the square on board is empty (considering superposition as occupied)
-    bool isEmpty(Pos pos);
+    bool isEmpty(Pos pos) const;
 
     // Check if the given color's king is in check
     bool isInCheck(SquareColor color);
@@ -84,6 +91,7 @@ public:
     bool isSuperpositionSquare(Pos pos) const;
     bool isSuperpositionOriginal(Pos pos) const;
     int getSuperpositionProbability() const;
+    float getSuperpositionProbabilityF() const;
 };
 
 #endif
